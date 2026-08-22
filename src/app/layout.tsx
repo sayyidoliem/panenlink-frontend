@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { DM_Sans } from "next/font/google";
+import { Manrope } from "next/font/google";
 import "./globals.css";
-const font = DM_Sans({ subsets: ["latin"], display: "swap" });
+const manrope = Manrope({ subsets: ["latin"], display: "swap" });
 export const metadata: Metadata = {
   title: "PanenLink",
-  description: "Smart backhaul untuk rantai pasok hasil panen",
+  description: "Agritech logistics marketplace",
 };
 export default function RootLayout({
   children,
@@ -13,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id">
-      <body className={font.className}>{children}</body>
+      <body className={manrope.className}>{children}</body>
     </html>
   );
 }

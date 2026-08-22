@@ -1,21 +1,25 @@
-# PanenLink Next.js
+# PanenLink UI Prototype
 
-Migrasi Vite ke Next.js App Router dengan Clean Architecture, TypeScript strict, Repository Pattern, use case OOP, reusable UI component, dan localStorage adapter.
+Next.js App Router UI prototype berdasarkan kumpulan referensi HTML PanenLink. Fokus saat ini adalah visual dan navigasi, belum integrasi bisnis/API.
+
+## Routes
+
+- `/` landing page
+- `/login`, `/register`
+- `/dashboard`
+- `/post-load`
+- `/loads`, `/loads/empty`, `/loads/LOAD-2026-0821`
+- `/orders`
+- `/profile`
+- `/settings`
+
+## Run
 
 ```bash
 npm install
 npm run dev
-npm run typecheck
-npm run build
 ```
 
-## Arsitektur
+## Architecture
 
-- `app`: composition root dan route App Router
-- `features/panenlink/domain`: entity/type dan repository contract
-- `features/panenlink/application`: use case serta DTO
-- `features/panenlink/infrastructure`: localStorage repository dan seed
-- `features/panenlink/presentation`: controller hook dan views
-- `components/ui`: komponen reusable
-
-`LocalPanenLinkRepository` hanya dipakai pada client boundary karena memakai browser API. Untuk backend nyata, buat `HttpPanenLinkRepository` yang memenuhi kontrak yang sama, lalu ganti dependency pada `PanenLinkApp`.
+Shared layout berada di `src/components/layout`, komponen UI di `src/components/ui`, dan setiap layar menggunakan route App Router terpisah. Sidebar menggunakan `usePathname` untuk active state. Semua form/tombol masih bersifat presentasional.
