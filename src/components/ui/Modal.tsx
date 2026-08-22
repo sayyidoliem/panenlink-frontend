@@ -1,5 +1,5 @@
 "use client";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Button } from "./Button";
 export function Modal({
   title,
@@ -10,6 +10,16 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", fn);
+    const old = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", fn);
+      document.body.style.overflow = old;
+    };
+  }, [onClose]);
   return (
     <div className="overlay" role="presentation" onMouseDown={onClose}>
       <section

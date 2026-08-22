@@ -1,88 +1,142 @@
+"use client";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
-import { Search, Scale, MapPin, Plus, Minus } from "lucide-react";
-const loads = [
+import { RouteMap } from "@/components/maps/RouteMap";
+import { Search, Scale, MapPin, SlidersHorizontal } from "lucide-react";
+import { useMemo, useState } from "react";
+const all = [
   {
+    id: "LOAD-2026-0821",
     name: "Cabai Merah Keriting",
-    w: "5.0 Ton",
-    route: "Garut → Jakarta",
-    price: "Rp 4.500.000",
+    kg: 5000,
+    origin: "Garut",
+    destination: "Jakarta",
+    price: 4500000,
     urgent: true,
   },
   {
+    id: "LOAD-2026-0805",
     name: "Bawang Merah",
-    w: "3.2 Ton",
-    route: "Brebes → Bandung",
-    price: "Rp 2.100.000",
+    kg: 3200,
+    origin: "Brebes",
+    destination: "Bandung",
+    price: 2100000,
   },
   {
+    id: "LOAD-2026-0801",
     name: "Tomat Apel",
-    w: "2.8 Ton",
-    route: "Sukabumi → Tangerang",
-    price: "Rp 1.850.000",
+    kg: 2800,
+    origin: "Sukabumi",
+    destination: "Tangerang",
+    price: 1850000,
   },
 ];
 export default function Page() {
+  const [q, setQ] = useState(""),
+    [commodity, setCommodity] = useState("all"),
+    [max, setMax] = useState(10000),
+    [selected, setSelected] = useState(all[0]);
+  const rows = useMemo(
+    () =>
+      all.filter(
+        (x) =>
+          (commodity === "all" || x.name.toLowerCase().includes(commodity)) &&
+          x.kg <= max &&
+          `${x.name} ${x.origin} ${x.destination} ${x.id}`
+            .toLowerCase()
+            .includes(q.toLowerCase()),
+      ),
+    [q, commodity, max],
+  );
   return (
     <AppShell flush>
       <div className="filterbar">
         <label>
           <Search />
-          <input placeholder="Cari kota asal, tujuan..." />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Cari lokasi, komoditas, ID..."
+          />
         </label>
-        {["Semua Komoditas", "Tonase", "Tanggal", "Urutkan: Terbaru"].map(
-          (x) => (
-            <button key={x}>{x}</button>
-          ),
-        )}
+        <select
+          value={commodity}
+          onChange={(e) => setCommodity(e.target.value)}
+        >
+          <option value="all">Semua Komoditas</option>
+          <option value="cabai">Cabai</option>
+          <option value="bawang">Bawang</option>
+          <option value="tomat">Tomat</option>
+        </select>
+        <label className="range">
+          <SlidersHorizontal /> Maks {max / 1000} ton
+          <input
+            type="range"
+            min="1000"
+            max="10000"
+            step="500"
+            value={max}
+            onChange={(e) => setMax(+e.target.value)}
+          />
+        </label>
+        <span>{rows.length} Muatan</span>
       </div>
       <div className="split">
         <section className="load-list">
-          <h3>Menampilkan 12 Muatan Tersedia di Jawa Barat</h3>
-          {loads.map((x, i) => (
-            <Link
-              href="/loads/LOAD-2026-0821"
-              className={i === 0 ? "load-card selected" : "load-card"}
-              key={x.name}
+          <h3>Muatan tersedia</h3>
+          {rows.map((x) => (
+            <article
+              onClick={() => setSelected(x)}
+              className={
+                selected.id === x.id ? "load-card selected" : "load-card"
+              }
+              key={x.id}
             >
               <header>
                 <span>
                   <b>{x.name}</b>
                   <small>
                     <Scale />
-                    {x.w}
+                    {x.kg / 1000} Ton
                   </small>
                 </span>
                 {x.urgent && <i>Urgent</i>}
               </header>
               <div className="route">
                 <MapPin />
-                <b>{x.route}</b>
+                <b>
+                  {x.origin} → {x.destination}
+                </b>
               </div>
               <footer>
-                <strong>{x.price}</strong>
-                <span>{i === 0 ? "Ambil Muatan" : "Lihat Detail"}</span>
+                <strong>Rp {x.price.toLocaleString("id-ID")}</strong>
+                <Link href={`/loads/${x.id}`}>Lihat Detail</Link>
               </footer>
-            </Link>
+            </article>
           ))}
+          {!rows.length && (
+            <div className="empty-load">
+              <h2>Tidak ada muatan</h2>
+              <button
+                className="button primary"
+                onClick={() => {
+                  setQ("");
+                  setCommodity("all");
+                  setMax(10000);
+                }}
+              >
+                Reset Filter
+              </button>
+            </div>
+          )}
         </section>
         <section className="map">
-          <div className="map-route">
-            <i />
-            <span>Garut</span>
-            <span>Jakarta</span>
-          </div>
+          <RouteMap initial={selected.origin} />
           <div className="map-tip">
-            <b>Cabai Merah • 5.0 Ton</b>
-            <small>Rp 4.5 M</small>
-          </div>
-          <div className="map-controls">
-            <button>
-              <Plus />
-            </button>
-            <button>
-              <Minus />
-            </button>
+            <b>{selected.name}</b>
+            <small>
+              {selected.origin} → {selected.destination}
+            </small>
           </div>
         </section>
       </div>
