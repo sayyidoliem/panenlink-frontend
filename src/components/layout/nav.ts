@@ -2,21 +2,23 @@ import {
   LayoutDashboard,
   PackagePlus,
   Truck,
-  Users,
-  Wallet,
+  Search,
+  User,
   Settings,
   HelpCircle,
   LogOut,
+  Bot,
 } from "lucide-react";
 export const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/post-load", label: "Post Muatan", icon: PackagePlus },
-  { href: "/orders", label: "Daftar Pesanan", icon: Truck },
-  { href: "/loads", label: "Cari Muatan", icon: Users },
-  { href: "/profile", label: "Profil", icon: Wallet },
-  { href: "/settings", label: "Pengaturan", icon: Settings },
+  { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
+  { href: "/post-load", key: "post", icon: PackagePlus },
+  { href: "/orders", key: "orders", icon: Truck },
+  { href: "/loads", key: "loads", icon: Search },
+  { href: "/ai", key: "ai", icon: Bot },
+  { href: "/profile", key: "profile", icon: User },
+  { href: "/settings", key: "settings", icon: Settings },
 ];
-export const navBottom = [
-  { href: "#", label: "Pusat Bantuan", icon: HelpCircle },
-  { href: "/", label: "Keluar", icon: LogOut },
+export const bottom = [
+  { href: "/help", key: "help", icon: HelpCircle },
+  { href: "/login", key: "logout", icon: LogOut },
 ];

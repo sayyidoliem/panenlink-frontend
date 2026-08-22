@@ -1,17 +1,6 @@
-# PanenLink UI Prototype
+# PanenLink Functional Prototype
 
-Next.js App Router UI prototype berdasarkan kumpulan referensi HTML PanenLink. Fokus saat ini adalah visual dan navigasi, belum integrasi bisnis/API.
-
-## Routes
-
-- `/` landing page
-- `/login`, `/register`
-- `/dashboard`
-- `/post-load`
-- `/loads`, `/loads/empty`, `/loads/LOAD-2026-0821`
-- `/orders`
-- `/profile`
-- `/settings`
+Next.js App Router prototype dengan peta OpenStreetMap, geocoding Photon/Nominatim, routing OSRM, pencarian muatan, profil, verifikasi, pengaturan, dark mode, i18n, bantuan, dan chatbot lokal.
 
 ## Run
 
@@ -20,6 +9,8 @@ npm install
 npm run dev
 ```
 
-## Architecture
+Data demo dan preferensi disimpan di localStorage. API route `/api/geocode` dan `/api/route` menjadi adapter untuk layanan peta publik.
 
-Shared layout berada di `src/components/layout`, komponen UI di `src/components/ui`, dan setiap layar menggunakan route App Router terpisah. Sidebar menggunakan `usePathname` untuk active state. Semua form/tombol masih bersifat presentasional.
+## Kode yang dihapus dari versi lama
+
+`src/application`, `src/domain`, `src/infrastructure`, `src/presentation`, `src/main.tsx`, dan `src/vite-env.d.ts` adalah implementasi Vite/root-level duplikat. Gunakan `src/features/panenlink` sebagai sumber domain PanenLink.

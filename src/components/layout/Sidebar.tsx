@@ -2,9 +2,11 @@
 import Link from "next/link";
 import { Sprout } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { nav, navBottom } from "./nav";
+import { nav, bottom } from "./nav";
+import { useApp } from "@/shared/app/AppProvider";
 export function Sidebar() {
-  const path = usePathname();
+  const p = usePathname(),
+    { t } = useApp();
   return (
     <aside className="sidebar">
       <Link href="/" className="side-brand">
@@ -14,26 +16,26 @@ export function Sidebar() {
         </span>
       </Link>
       <nav>
-        {nav.map(({ href, label, icon: Icon }) => (
+        {nav.map(({ href, key, icon: I }) => (
           <Link
             key={href}
             href={href}
             className={
-              path === href || path.startsWith(href + "/")
+              p === href || p.startsWith(href + "/")
                 ? "side-link active"
                 : "side-link"
             }
           >
-            <Icon />
-            <span>{label}</span>
+            <I />
+            <span>{t(key)}</span>
           </Link>
         ))}
       </nav>
       <nav className="side-bottom">
-        {navBottom.map(({ href, label, icon: Icon }) => (
-          <Link key={label} href={href} className="side-link">
-            <Icon />
-            <span>{label}</span>
+        {bottom.map(({ href, key, icon: I }) => (
+          <Link key={href} href={href} className="side-link">
+            <I />
+            <span>{t(key)}</span>
           </Link>
         ))}
       </nav>
