@@ -51,7 +51,7 @@ export function OperatorDashboard({
               <Download />
               Ekspor
             </Button>
-            <Button loading={busy} onClick={() => void run()}>
+            <Button disabled={busy} onClick={() => void run()}>
               <Play />
               Jalankan Optimasi
             </Button>
@@ -87,10 +87,11 @@ export function OperatorDashboard({
           tone="purple"
         />
       </div>
-      <Card
-        title="Data Operasional"
-        subtitle="Seluruh data demo tersimpan pada perangkat"
-      >
+      <Card>
+        <div className="card-header">
+          <h2>Data Operasional</h2>
+          <p>Seluruh data demo tersimpan pada perangkat</p>
+        </div>
         <div className="tabs">
           {(["matches", "harvests", "trips"] as const).map((x) => (
             <Button
@@ -107,7 +108,7 @@ export function OperatorDashboard({
           ))}
           <Button
             className="push"
-            variant="danger"
+            variant="outline"
             onClick={() => void actions.reset()}
           >
             <RotateCcw />

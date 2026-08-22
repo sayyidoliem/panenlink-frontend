@@ -76,10 +76,11 @@ export function DriverDashboard({
           tone="purple"
         />
       </div>
-      <Card
-        title="Penawaran Muatan"
-        subtitle="Rekomendasi terbaik di sepanjang rute"
-      >
+      <Card>
+        <div className="card-heading">
+          <h2>Penawaran Muatan</h2>
+          <p>Rekomendasi terbaik di sepanjang rute</p>
+        </div>
         <div className="offer-grid">
           {offers.map((m) => (
             <article className="offer" key={m.id}>
@@ -95,7 +96,7 @@ export function DriverDashboard({
               </div>
               <div className="actions">
                 <Button
-                  variant="danger"
+                  variant="outline"
                   onClick={() => void actions.updateMatch(m.id, "Ditolak")}
                 >
                   Tolak

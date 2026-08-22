@@ -78,7 +78,13 @@ export function FarmerDashboard({
           tone="purple"
         />
       </div>
-      <Card title="Panen Saya" subtitle="Status laporan terbaru">
+      <Card>
+        <header className="card-header">
+          <div>
+            <h2>Panen Saya</h2>
+            <p>Status laporan terbaru</p>
+          </div>
+        </header>
         {mine.map((h) => (
           <article className="list-row" key={h.id}>
             <span className="emoji">🌶️</span>
