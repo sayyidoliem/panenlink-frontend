@@ -19,12 +19,7 @@ import {
   UserRound,
   Verified,
 } from "lucide-react";
-import {
-  useEffect,
-  useState,
-  type ChangeEvent,
-  type FormEvent,
-} from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
@@ -139,23 +134,18 @@ export default function ProfilePage() {
   const { account, updateAccount } = useApp();
 
   const [modal, setModal] = useState<ProfileModal>(null);
-  const [assets, setAssets] =
-    useState<ProfileAsset[]>(defaultAssets);
+  const [assets, setAssets] = useState<ProfileAsset[]>(defaultAssets);
   const [documents, setDocuments] =
     useState<VerificationDocument[]>(defaultDocuments);
 
   const [assetPreview, setAssetPreview] = useState("");
-  const [editingAsset, setEditingAsset] =
-    useState<ProfileAsset | null>(null);
+  const [editingAsset, setEditingAsset] = useState<ProfileAsset | null>(null);
 
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setAssets(
-      readStoredValue<ProfileAsset[]>(
-        ASSET_STORAGE_KEY,
-        defaultAssets,
-      ),
+      readStoredValue<ProfileAsset[]>(ASSET_STORAGE_KEY, defaultAssets),
     );
 
     setDocuments(
@@ -173,10 +163,7 @@ export default function ProfilePage() {
       return;
     }
 
-    window.localStorage.setItem(
-      ASSET_STORAGE_KEY,
-      JSON.stringify(assets),
-    );
+    window.localStorage.setItem(ASSET_STORAGE_KEY, JSON.stringify(assets));
   }, [assets, hydrated]);
 
   useEffect(() => {
@@ -190,9 +177,7 @@ export default function ProfilePage() {
     );
   }, [documents, hydrated]);
 
-  const handleProfilePhoto = (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleProfilePhoto = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -223,23 +208,16 @@ export default function ProfilePage() {
     event.target.value = "";
   };
 
-  const handleProfileSubmit = (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
+  const handleProfileSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
 
     const name = String(formData.get("name") ?? "").trim();
     const role = String(formData.get("role") ?? "").trim();
-    const location = String(
-      formData.get("location") ?? "",
-    ).trim();
+    const location = String(formData.get("location") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim();
-    const phone = String(formData.get("phone") ?? "").replace(
-      /\D/g,
-      "",
-    );
+    const phone = String(formData.get("phone") ?? "").replace(/\D/g, "");
 
     if (!name || !role || !location || !email || !phone) {
       window.alert("Seluruh informasi profil wajib diisi.");
@@ -275,9 +253,7 @@ export default function ProfilePage() {
     ];
 
     if (!validTypes.includes(file.type)) {
-      window.alert(
-        "Dokumen harus berformat PDF, JPG, PNG, atau WEBP.",
-      );
+      window.alert("Dokumen harus berformat PDF, JPG, PNG, atau WEBP.");
       event.target.value = "";
       return;
     }
@@ -308,17 +284,13 @@ export default function ProfilePage() {
   };
 
   const handleRemoveDocument = (documentId: string) => {
-    const document = documents.find(
-      (item) => item.id === documentId,
-    );
+    const document = documents.find((item) => item.id === documentId);
 
     if (!document) {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Hapus dokumen ${document.title}?`,
-    );
+    const confirmed = window.confirm(`Hapus dokumen ${document.title}?`);
 
     if (!confirmed) {
       return;
@@ -337,9 +309,7 @@ export default function ProfilePage() {
     );
   };
 
-  const handleAssetImage = (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleAssetImage = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -386,32 +356,20 @@ export default function ProfilePage() {
     setAssetPreview("");
   };
 
-  const handleAssetSubmit = (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
+  const handleAssetSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
 
-    const type = String(
-      formData.get("type") ?? "field",
-    ) as AssetType;
+    const type = String(formData.get("type") ?? "field") as AssetType;
 
-    const title = String(
-      formData.get("title") ?? "",
-    ).trim();
+    const title = String(formData.get("title") ?? "").trim();
 
-    const description = String(
-      formData.get("description") ?? "",
-    ).trim();
+    const description = String(formData.get("description") ?? "").trim();
 
-    const location = String(
-      formData.get("location") ?? "",
-    ).trim();
+    const location = String(formData.get("location") ?? "").trim();
 
-    const detail = String(
-      formData.get("detail") ?? "",
-    ).trim();
+    const detail = String(formData.get("detail") ?? "").trim();
 
     if (!title || !description || !location || !detail) {
       window.alert("Seluruh informasi aset wajib diisi.");
@@ -419,9 +377,7 @@ export default function ProfilePage() {
     }
 
     const fallbackImage =
-      type === "field"
-        ? defaultAssets[0].image
-        : defaultAssets[1].image;
+      type === "field" ? defaultAssets[0].image : defaultAssets[1].image;
 
     if (editingAsset) {
       setAssets((currentAssets) =>
@@ -434,10 +390,7 @@ export default function ProfilePage() {
                 description,
                 location,
                 detail,
-                image:
-                  assetPreview ||
-                  editingAsset.image ||
-                  fallbackImage,
+                image: assetPreview || editingAsset.image || fallbackImage,
               }
             : asset,
         ),
@@ -453,35 +406,26 @@ export default function ProfilePage() {
         image: assetPreview || fallbackImage,
       };
 
-      setAssets((currentAssets) => [
-        ...currentAssets,
-        newAsset,
-      ]);
+      setAssets((currentAssets) => [...currentAssets, newAsset]);
     }
 
     closeAssetModal();
   };
 
   const handleRemoveAsset = (asset: ProfileAsset) => {
-    const confirmed = window.confirm(
-      `Hapus aset "${asset.title}"?`,
-    );
+    const confirmed = window.confirm(`Hapus aset "${asset.title}"?`);
 
     if (!confirmed) {
       return;
     }
 
     setAssets((currentAssets) =>
-      currentAssets.filter(
-        (item) => item.id !== asset.id,
-      ),
+      currentAssets.filter((item) => item.id !== asset.id),
     );
   };
 
   const handleResetAssets = () => {
-    const confirmed = window.confirm(
-      "Kembalikan aset ke data awal?",
-    );
+    const confirmed = window.confirm("Kembalikan aset ke data awal?");
 
     if (!confirmed) {
       return;
@@ -498,13 +442,9 @@ export default function ProfilePage() {
             className="profile-photo profile-photo-editable"
             title="Klik untuk mengganti foto profil"
           >
-            {account.photo ? (
-              account.photo
-            ) : (
-              getInitials(
-                account.name || "Haji Supriatna",
-              )
-            )}
+            {account.photo
+              ? account.photo
+              : getInitials(account.name || "Haji Supriatna")}
 
             <span className="profile-photo-action">
               <Camera aria-hidden="true" />
@@ -519,9 +459,7 @@ export default function ProfilePage() {
 
           <div>
             <div className="profile-title">
-              <h1>
-                {account.name || "Pak Haji Supriatna"}
-              </h1>
+              <h1>{account.name || "Pak Haji Supriatna"}</h1>
 
               {account.verified && (
                 <i className="profile-verified">
@@ -531,16 +469,12 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <h3>
-              {account.role ||
-                "Petani Utama & Pengumpul"}
-            </h3>
+            <h3>{account.role || "Petani Utama & Pengumpul"}</h3>
 
             <p>
               <span>
                 <MapPin aria-hidden="true" />
-                {account.location ||
-                  "Garut, Jawa Barat"}
+                {account.location || "Garut, Jawa Barat"}
               </span>
 
               <span>
@@ -554,10 +488,7 @@ export default function ProfilePage() {
               <span>+{account.phone}</span>
             </div>
 
-            <Button
-              variant="outline"
-              onClick={() => setModal("profile")}
-            >
+            <Button variant="outline" onClick={() => setModal("profile")}>
               <Pencil aria-hidden="true" />
               Edit Profil
             </Button>
@@ -591,9 +522,7 @@ export default function ProfilePage() {
 
         <div className="profile-grid">
           <section>
-            <h2>
-              Verifikasi Identitas & Dokumen Usaha
-            </h2>
+            <h2>Verifikasi Identitas & Dokumen Usaha</h2>
 
             {documents.map((document) => {
               const DocumentIcon =
@@ -606,17 +535,12 @@ export default function ProfilePage() {
                       : FileText;
 
               return (
-                <article
-                  className="verify verify-functional"
-                  key={document.id}
-                >
+                <article className="verify verify-functional" key={document.id}>
                   <DocumentIcon aria-hidden="true" />
 
                   <div>
                     <b>{document.title}</b>
-                    <small>
-                      {document.description}
-                    </small>
+                    <small>{document.description}</small>
 
                     {document.fileName && (
                       <small className="verify-file-name">
@@ -630,8 +554,7 @@ export default function ProfilePage() {
                       className={
                         document.status === "Pending"
                           ? "pending"
-                          : document.status ===
-                              "Not Uploaded"
+                          : document.status === "Not Uploaded"
                             ? "missing"
                             : ""
                       }
@@ -646,18 +569,13 @@ export default function ProfilePage() {
                     <label className="verify-upload">
                       <Upload aria-hidden="true" />
 
-                      {document.status === "Not Uploaded"
-                        ? "Upload"
-                        : "Ganti"}
+                      {document.status === "Not Uploaded" ? "Upload" : "Ganti"}
 
                       <input
                         type="file"
                         accept="application/pdf,image/png,image/jpeg,image/webp"
                         onChange={(event) =>
-                          handleDocumentUpload(
-                            document.id,
-                            event,
-                          )
+                          handleDocumentUpload(document.id, event)
                         }
                       />
                     </label>
@@ -667,9 +585,7 @@ export default function ProfilePage() {
                         type="button"
                         className="verify-remove"
                         aria-label={`Hapus dokumen ${document.title}`}
-                        onClick={() =>
-                          handleRemoveDocument(document.id)
-                        }
+                        onClick={() => handleRemoveDocument(document.id)}
                       >
                         <Trash2 aria-hidden="true" />
                       </button>
@@ -684,10 +600,7 @@ export default function ProfilePage() {
             <div className="profile-section-head">
               <div>
                 <h2>Aset Pertanian & Logistik</h2>
-                <p>
-                  Kelola lahan dan armada yang terhubung
-                  dengan akun.
-                </p>
+                <p>Kelola lahan dan armada yang terhubung dengan akun.</p>
               </div>
 
               <div className="profile-asset-actions">
@@ -700,10 +613,7 @@ export default function ProfilePage() {
                   Reset
                 </Button>
 
-                <Button
-                  variant="ghost"
-                  onClick={openAddAssetModal}
-                >
+                <Button variant="ghost" onClick={openAddAssetModal}>
                   <Plus aria-hidden="true" />
                   Tambah Lahan / Armada
                 </Button>
@@ -728,9 +638,7 @@ export default function ProfilePage() {
                         <Truck aria-hidden="true" />
                       )}
 
-                      {asset.type === "field"
-                        ? "Lahan"
-                        : "Armada"}
+                      {asset.type === "field" ? "Lahan" : "Armada"}
                     </span>
                   </div>
 
@@ -742,9 +650,7 @@ export default function ProfilePage() {
                         {asset.detail} - {asset.location}
                       </p>
 
-                      <small>
-                        {asset.description}
-                      </small>
+                      <small>{asset.description}</small>
                     </div>
 
                     <div className="asset-card-actions">
@@ -753,9 +659,7 @@ export default function ProfilePage() {
                         className="asset-edit"
                         aria-label={`Edit ${asset.title}`}
                         title={`Edit ${asset.title}`}
-                        onClick={() =>
-                          openEditAssetModal(asset)
-                        }
+                        onClick={() => openEditAssetModal(asset)}
                       >
                         <Pencil aria-hidden="true" />
                       </button>
@@ -765,9 +669,7 @@ export default function ProfilePage() {
                         className="asset-remove"
                         aria-label={`Hapus ${asset.title}`}
                         title={`Hapus ${asset.title}`}
-                        onClick={() =>
-                          handleRemoveAsset(asset)
-                        }
+                        onClick={() => handleRemoveAsset(asset)}
                       >
                         <Trash2 aria-hidden="true" />
                       </button>
@@ -804,25 +706,16 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <span
-                    className="review-stars"
-                    aria-label="Rating 5 dari 5"
-                  >
-                    {Array.from({ length: 5 }).map(
-                      (_, index) => (
-                        <Star
-                          key={index}
-                          aria-hidden="true"
-                        />
-                      ),
-                    )}
+                  <span className="review-stars" aria-label="Rating 5 dari 5">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <Star key={index} aria-hidden="true" />
+                    ))}
                   </span>
                 </div>
 
                 <p>
-                  “Proses muat cepat, penimbangan jujur
-                  dan ramah. Akses jalan ke lahan cukup
-                  baik untuk CDD.”
+                  “Proses muat cepat, penimbangan jujur dan ramah. Akses jalan
+                  ke lahan cukup baik untuk CDD.”
                 </p>
 
                 <div className="review-tags">
@@ -835,30 +728,16 @@ export default function ProfilePage() {
         </div>
 
         {modal === "profile" && (
-          <Modal
-            title="Edit Profil"
-            onClose={() => setModal(null)}
-          >
-            <form
-              className="form"
-              onSubmit={handleProfileSubmit}
-            >
+          <Modal title="Edit Profil" onClose={() => setModal(null)}>
+            <form className="form" onSubmit={handleProfileSubmit}>
               <label>
                 Nama Lengkap
-                <input
-                  name="name"
-                  defaultValue={account.name}
-                  required
-                />
+                <input name="name" defaultValue={account.name} required />
               </label>
 
               <label>
                 Peran atau Jenis Usaha
-                <input
-                  name="role"
-                  defaultValue={account.role}
-                  required
-                />
+                <input name="role" defaultValue={account.role} required />
               </label>
 
               <label>
@@ -900,32 +779,21 @@ export default function ProfilePage() {
         {modal === "asset" && (
           <Modal
             title={
-              editingAsset
-                ? "Edit Lahan / Armada"
-                : "Tambah Lahan / Armada"
+              editingAsset ? "Edit Lahan / Armada" : "Tambah Lahan / Armada"
             }
             onClose={closeAssetModal}
           >
-            <form
-              className="form asset-form"
-              onSubmit={handleAssetSubmit}
-            >
+            <form className="form asset-form" onSubmit={handleAssetSubmit}>
               <label>
                 Jenis
                 <select
                   name="type"
-                  defaultValue={
-                    editingAsset?.type ?? "field"
-                  }
+                  defaultValue={editingAsset?.type ?? "field"}
                   required
                 >
-                  <option value="field">
-                    Lahan Pertanian
-                  </option>
+                  <option value="field">Lahan Pertanian</option>
 
-                  <option value="truck">
-                    Armada Logistik
-                  </option>
+                  <option value="truck">Armada Logistik</option>
                 </select>
               </label>
 
@@ -933,9 +801,7 @@ export default function ProfilePage() {
                 Title atau Nama Aset
                 <input
                   name="title"
-                  defaultValue={
-                    editingAsset?.title ?? ""
-                  }
+                  defaultValue={editingAsset?.title ?? ""}
                   placeholder="Contoh: Lahan Cabai Merah"
                   required
                 />
@@ -946,9 +812,7 @@ export default function ProfilePage() {
                 <textarea
                   name="description"
                   rows={3}
-                  defaultValue={
-                    editingAsset?.description ?? ""
-                  }
+                  defaultValue={editingAsset?.description ?? ""}
                   placeholder="Jelaskan fungsi atau kondisi aset"
                   required
                 />
@@ -959,9 +823,7 @@ export default function ProfilePage() {
                   Lokasi
                   <input
                     name="location"
-                    defaultValue={
-                      editingAsset?.location ?? ""
-                    }
+                    defaultValue={editingAsset?.location ?? ""}
                     placeholder="Contoh: Garut"
                     required
                   />
@@ -971,9 +833,7 @@ export default function ProfilePage() {
                   Luas, Kapasitas, atau Nomor Polisi
                   <input
                     name="detail"
-                    defaultValue={
-                      editingAsset?.detail ?? ""
-                    }
+                    defaultValue={editingAsset?.detail ?? ""}
                     placeholder="2.5 Hektar atau Z 8201 AB"
                     required
                   />
@@ -1010,9 +870,7 @@ export default function ProfilePage() {
                 </Button>
 
                 <Button type="submit">
-                  {editingAsset
-                    ? "Simpan Perubahan"
-                    : "Tambah Aset"}
+                  {editingAsset ? "Simpan Perubahan" : "Tambah Aset"}
                 </Button>
               </div>
             </form>
