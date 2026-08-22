@@ -1,19 +1,21 @@
-# PanenLink Frontend
+# PanenLink Next.js
 
-Frontend MVP tiga role: Petani, Pengemudi, dan Operator. Data tersimpan di localStorage dan siap diganti ke API AI/ML melalui repository.
+Migrasi Vite ke Next.js App Router dengan Clean Architecture, TypeScript strict, Repository Pattern, use case OOP, reusable UI component, dan localStorage adapter.
 
-## Menjalankan
 ```bash
 npm install
 npm run dev
-```
-
-## Build
-```bash
+npm run typecheck
 npm run build
 ```
 
-Gunakan role switcher di sidebar untuk demonstrasi. Semua form, status, match, penerimaan trip, kalkulasi, notifikasi, ekspor JSON, dan reset demo berfungsi.
+## Arsitektur
 
-## Integrasi API
-Ubah `VITE_USE_MOCK=false`, isi `VITE_API_BASE_URL`, lalu implementasikan endpoint pada `src/infrastructure/repositories/HttpPanenLinkRepository.ts` sesuai kontrak `PanenLinkRepository`.
+- `app`: composition root dan route App Router
+- `features/panenlink/domain`: entity/type dan repository contract
+- `features/panenlink/application`: use case serta DTO
+- `features/panenlink/infrastructure`: localStorage repository dan seed
+- `features/panenlink/presentation`: controller hook dan views
+- `components/ui`: komponen reusable
+
+`LocalPanenLinkRepository` hanya dipakai pada client boundary karena memakai browser API. Untuk backend nyata, buat `HttpPanenLinkRepository` yang memenuhi kontrak yang sama, lalu ganti dependency pada `PanenLinkApp`.
