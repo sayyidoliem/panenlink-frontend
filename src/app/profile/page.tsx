@@ -461,12 +461,12 @@ export default function ProfilePage() {
             <div className="profile-title">
               <h1>{account.name || "Pak Haji Supriatna"}</h1>
 
-              {account.verified && (
-                <i className="profile-verified">
-                  <Verified aria-hidden="true" />
-                  Akun Terverifikasi - Level Gold
-                </i>
-              )}
+              {/* {account.verified && (
+                // <i className="profile-verified">
+                //   <Verified aria-hidden="true" />
+                //   Akun Terverifikasi - Level Gold
+                // </i>
+              )} */}
             </div>
 
             <h3>{account.role || "Petani Utama & Pengumpul"}</h3>
