@@ -165,12 +165,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadAccountFromSupabase = useCallback(async () => {
     const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error("Gagal mengambil sesi Supabase:", sessionError.message);
+      return;
+    }
+
+    /*
+     * Tidak ada session berarti pengguna belum login.
+     * Ini kondisi normal, jadi tidak perlu console.error.
+     */
+    if (!session) {
+      return;
+    }
+
+    /*
+     * Setelah dipastikan ada session, validasi pengguna
+     * dengan server Supabase Auth.
+     */
+    const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
 
     if (userError) {
-      console.error("Gagal mengambil pengguna Supabase:", userError.message);
+      console.error("Gagal memvalidasi pengguna Supabase:", userError.message);
       return;
     }
 
@@ -178,25 +200,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data: profile, error: profileError } = (await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select(
         `
-          id,
-          name,
-          role,
-          location,
-          phone,
-          photo_url,
-          verified,
-          member_since,
-          load_count,
-          completion_percentage,
-          rating
-        `,
+      id,
+      name,
+      role,
+      location,
+      phone,
+      photo_url,
+      verified,
+      member_since,
+      load_count,
+      completion_percentage,
+      rating
+    `,
       )
       .eq("id", user.id)
-      .maybeSingle()) as { data: SupabaseProfile | null; error: any };
+      .maybeSingle();
+
+    const typedProfile = profile as SupabaseProfile | null;
 
     if (profileError) {
       console.error(

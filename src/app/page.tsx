@@ -11,6 +11,7 @@ import {
   Truck,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/shared/lib/supabase/client";
 
 const display = Syne({ subsets: ["latin"], weight: ["700", "800"] });
 
@@ -71,6 +72,7 @@ function useReveal<T extends HTMLElement>() {
 
 export default function Landing() {
   const [solidNav, setSolidNav] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const missionRef = useReveal<HTMLElement>();
   const howRef = useReveal<HTMLElement>();
   const personaRef = useReveal<HTMLElement>();
@@ -81,6 +83,36 @@ export default function Landing() {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (active) {
+        setIsAuthenticated(Boolean(session));
+      }
+    };
+
+    void checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      if (active) {
+        setIsAuthenticated(Boolean(session));
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -100,10 +132,20 @@ export default function Landing() {
           <a href="#about">About Us</a>
         </div>
         <span>
-          <Link href="/login">Masuk</Link>
-          <Link className="button secondary" href="/register">
-            Daftar
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link className="button secondary" href="/dashboard">
+                Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/login">Masuk</Link>
+              <Link className="button secondary" href="/register">
+                Daftar
+              </Link>
+            </>
+          )}
         </span>
       </nav>
 
@@ -123,12 +165,22 @@ export default function Landing() {
               earnings today.
             </p>
             <div className="hero-actions">
-              <Link className="button secondary" href="/register">
-                Get Started Now
-              </Link>
-              <a className="button glass" href="#how">
-                See How It Works
-              </a>
+              {isAuthenticated ? (
+                <>
+                  <a className="button glass" href="#how">
+                    See How It Works
+                  </a>
+                </>
+              ) : (
+                <>
+                  <Link className="button secondary" href="/register">
+                    Get Started Now
+                  </Link>
+                  <a className="button glass" href="#how">
+                    See How It Works
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </section>
