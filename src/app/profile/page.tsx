@@ -353,9 +353,7 @@ export default function ProfilePage() {
         "0";
 
       const authPhoto =
-        user.user_metadata?.avatar_url ??
-        user.user_metadata?.picture ??
-        "";
+        user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? "";
 
       const { data: profileRow, error: profileError } = await supabase
         .from("profiles")
@@ -498,7 +496,7 @@ export default function ProfilePage() {
       });
 
       setAssets(
-        (assetRows as ProfileAssetRow[] | null ?? []).map((asset) => ({
+        ((assetRows as ProfileAssetRow[] | null) ?? []).map((asset) => ({
           id: String(asset.id),
           type: asset.type === "truck" ? "truck" : "field",
           title: textFallback(asset.title),
@@ -511,24 +509,24 @@ export default function ProfilePage() {
       );
 
       setDocuments(
-        (documentRows as VerificationDocumentRow[] | null ?? []).map(
+        ((documentRows as VerificationDocumentRow[] | null) ?? []).map(
           (document: VerificationDocumentRow) => {
-          const status: DocumentStatus =
-            document.status === "Verified" ||
-            document.status === "Pending" ||
-            document.status === "Not Uploaded"
-              ? document.status
-              : "Not Uploaded";
+            const status: DocumentStatus =
+              document.status === "Verified" ||
+              document.status === "Pending" ||
+              document.status === "Not Uploaded"
+                ? document.status
+                : "Not Uploaded";
 
-          return {
-            id: String(document.id),
-            documentType: String(document.document_type ?? ""),
-            title: textFallback(document.title),
-            description: textFallback(document.description),
-            status,
-            fileName: String(document.file_name ?? ""),
-            filePath: String(document.file_path ?? ""),
-          };
+            return {
+              id: String(document.id),
+              documentType: String(document.document_type ?? ""),
+              title: textFallback(document.title),
+              description: textFallback(document.description),
+              status,
+              fileName: String(document.file_name ?? ""),
+              filePath: String(document.file_path ?? ""),
+            };
           },
         ),
       );
@@ -553,9 +551,7 @@ export default function ProfilePage() {
     };
   }, [assetPreview]);
 
-  const handleProfilePhoto = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleProfilePhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     event.target.value = "";
@@ -651,9 +647,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleProfileSubmit = async (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
+  const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
@@ -700,28 +694,25 @@ export default function ProfilePage() {
         authUpdate.email = email;
       }
 
-      const { error: authError } =
-        await supabase.auth.updateUser(authUpdate);
+      const { error: authError } = await supabase.auth.updateUser(authUpdate);
 
       if (authError) {
         throw authError;
       }
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert(
-          {
-            id: user.id,
-            name,
-            role,
-            location,
-            phone,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "id",
-          },
-        );
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          name,
+          role,
+          location,
+          phone,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "id",
+        },
+      );
 
       if (profileError) {
         throw profileError;
@@ -836,19 +827,13 @@ export default function ProfilePage() {
         throw updateError;
       }
 
-      if (
-        document.filePath &&
-        document.filePath !== uploadedFilePath
-      ) {
+      if (document.filePath && document.filePath !== uploadedFilePath) {
         const { error: removeOldFileError } = await supabase.storage
           .from("verification-documents")
           .remove([document.filePath]);
 
         if (removeOldFileError) {
-          console.error(
-            "Dokumen lama gagal dihapus:",
-            removeOldFileError,
-          );
+          console.error("Dokumen lama gagal dihapus:", removeOldFileError);
         }
       }
 
@@ -947,9 +932,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAssetImage = (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleAssetImage = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -1005,9 +988,7 @@ export default function ProfilePage() {
     setAssetPreview("");
   };
 
-  const handleAssetSubmit = async (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
+  const handleAssetSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const form = event.currentTarget;
@@ -1115,20 +1096,13 @@ export default function ProfilePage() {
           throw error;
         }
 
-        if (
-          oldImagePath &&
-          imagePath &&
-          oldImagePath !== imagePath
-        ) {
+        if (oldImagePath && imagePath && oldImagePath !== imagePath) {
           const { error: removeOldImageError } = await supabase.storage
             .from("asset-images")
             .remove([oldImagePath]);
 
           if (removeOldImageError) {
-            console.error(
-              "Foto aset lama gagal dihapus:",
-              removeOldImageError,
-            );
+            console.error("Foto aset lama gagal dihapus:", removeOldImageError);
           }
         }
 
@@ -1300,10 +1274,7 @@ export default function ProfilePage() {
           .remove(imagePaths);
 
         if (removeImagesError) {
-          console.error(
-            "Sebagian foto aset gagal dihapus:",
-            removeImagesError,
-          );
+          console.error("Sebagian foto aset gagal dihapus:", removeImagesError);
         }
       }
 
@@ -1329,33 +1300,32 @@ export default function ProfilePage() {
         <section className="card profile-hero">
           <div className="profile-hero-main">
             <label
-  className="profile-photo profile-photo-editable"
-  title={t("Edit foto profil")}
->
-  {profile.photo ? (
-    <img
-      key={profile.photo}
-      src={profile.photo}
-      alt={`Foto profil ${profile.name}`}
-      className="profile-photo-image"
-    />
-  ) : (
-    <span className="profile-photo-initials">
-      {getInitials(profile.name)}
-    </span>
-  )}
+              className="profile-photo profile-photo-editable"
+              title={t("Edit foto profil")}
+            >
+              {profile.photo ? (
+                <img
+                  key={profile.photo}
+                  src={profile.photo}
+                  alt={`Foto profil ${profile.name}`}
+                  className="profile-photo-image"
+                />
+              ) : (
+                <span className="profile-photo-initials">
+                  {getInitials(profile.name)}
+                </span>
+              )}
 
-  <span className="profile-photo-action">
-    <Camera aria-hidden="true" />
-  </span>
+              <span className="profile-photo-action">
+                <Camera aria-hidden="true" />
+              </span>
 
-  <input
-    type="file"
-    accept="image/png,image/jpeg,image/webp"
-    onChange={handleProfilePhoto}
-  />
-</label>
-
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleProfilePhoto}
+              />
+            </label>
 
             <div className="profile-hero-copy">
               <div className="profile-title">
@@ -1381,9 +1351,7 @@ export default function ProfilePage() {
                   <Calendar aria-hidden="true" />
                   {profile.memberSince === "-"
                     ? "-"
-                    : `Member since ${formatMemberSince(
-                        profile.memberSince,
-                      )}`}
+                    : `Member since ${formatMemberSince(profile.memberSince)}`}
                 </span>
               </p>
 
@@ -1399,10 +1367,7 @@ export default function ProfilePage() {
                 </span>
               </div>
 
-              <Button
-                variant="outline"
-                onClick={() => setModal("profile")}
-              >
+              <Button variant="outline" onClick={() => setModal("profile")}>
                 <Pencil aria-hidden="true" />
                 {t("Edit Profil")}
               </Button>
@@ -1416,8 +1381,7 @@ export default function ProfilePage() {
             </b>
 
             <b>
-              {completionPercentage}%
-              <small>{t("Kelengkapan")}</small>
+              {completionPercentage}%<small>{t("Kelengkapan")}</small>
             </b>
 
             <b className="profile-stat-rating">
@@ -1453,10 +1417,7 @@ export default function ProfilePage() {
 
                 <small>{completionPercentage}% lengkap</small>
 
-                <span
-                  className="profile-complete-bar"
-                  aria-hidden="true"
-                >
+                <span className="profile-complete-bar" aria-hidden="true">
                   <i
                     style={{
                       width: `${completionPercentage}%`,
@@ -1488,10 +1449,7 @@ export default function ProfilePage() {
                       : FileText;
 
               return (
-                <article
-                  className="verify verify-functional"
-                  key={document.id}
-                >
+                <article className="verify verify-functional" key={document.id}>
                   <DocumentIcon aria-hidden="true" />
 
                   <div>
@@ -1543,9 +1501,7 @@ export default function ProfilePage() {
                         type="button"
                         className="verify-remove"
                         aria-label={`Hapus dokumen ${document.title}`}
-                        onClick={() =>
-                          handleRemoveDocument(document.id)
-                        }
+                        onClick={() => handleRemoveDocument(document.id)}
                       >
                         <Trash2 aria-hidden="true" />
                       </button>
@@ -1562,9 +1518,7 @@ export default function ProfilePage() {
                 <h2>{t("Aset Pertanian & Logistik")}</h2>
 
                 <p>
-                  {t(
-                    "Kelola lahan dan armada yang terhubung dengan akun.",
-                  )}
+                  {t("Kelola lahan dan armada yang terhubung dengan akun.")}
                 </p>
               </div>
 
@@ -1605,9 +1559,7 @@ export default function ProfilePage() {
                         <Truck aria-hidden="true" />
                       )}
 
-                      {asset.type === "field"
-                        ? t("Lahan")
-                        : t("Armada")}
+                      {asset.type === "field" ? t("Lahan") : t("Armada")}
                     </span>
                   </div>
 
@@ -1675,10 +1627,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <span
-                    className="review-stars"
-                    aria-label="Rating 5 dari 5"
-                  >
+                  <span className="review-stars" aria-label="Rating 5 dari 5">
                     {Array.from({ length: 5 }).map((_, index) => (
                       <Star key={index} aria-hidden="true" />
                     ))}
@@ -1686,8 +1635,8 @@ export default function ProfilePage() {
                 </div>
 
                 <p>
-                  “Proses muat cepat, penimbangan jujur dan ramah. Akses
-                  jalan ke lahan cukup baik untuk CDD.”
+                  “Proses muat cepat, penimbangan jujur dan ramah. Akses jalan
+                  ke lahan cukup baik untuk CDD.”
                 </p>
 
                 <div className="review-tags">
@@ -1733,9 +1682,7 @@ export default function ProfilePage() {
                 <input
                   name="email"
                   type="email"
-                  defaultValue={
-                    profile.email === "-" ? "" : profile.email
-                  }
+                  defaultValue={profile.email === "-" ? "" : profile.email}
                 />
               </label>
 
@@ -1744,9 +1691,7 @@ export default function ProfilePage() {
                 <input
                   name="phone"
                   inputMode="numeric"
-                  defaultValue={
-                    profile.phone === "0" ? "" : profile.phone
-                  }
+                  defaultValue={profile.phone === "0" ? "" : profile.phone}
                 />
               </label>
 
@@ -1760,16 +1705,11 @@ export default function ProfilePage() {
         {modal === "asset" && (
           <Modal
             title={
-              editingAsset
-                ? "Edit Lahan / Armada"
-                : "Tambah Lahan / Armada"
+              editingAsset ? "Edit Lahan / Armada" : "Tambah Lahan / Armada"
             }
             onClose={closeAssetModal}
           >
-            <form
-              className="form asset-form"
-              onSubmit={handleAssetSubmit}
-            >
+            <form className="form asset-form" onSubmit={handleAssetSubmit}>
               <label>
                 Jenis
                 <select
@@ -1789,7 +1729,7 @@ export default function ProfilePage() {
                   defaultValue={
                     editingAsset?.title === "-"
                       ? ""
-                      : editingAsset?.title ?? ""
+                      : (editingAsset?.title ?? "")
                   }
                   placeholder="Contoh: Lahan Cabai Merah"
                 />
@@ -1803,7 +1743,7 @@ export default function ProfilePage() {
                   defaultValue={
                     editingAsset?.description === "-"
                       ? ""
-                      : editingAsset?.description ?? ""
+                      : (editingAsset?.description ?? "")
                   }
                   placeholder="Jelaskan fungsi atau kondisi aset"
                 />
@@ -1817,7 +1757,7 @@ export default function ProfilePage() {
                     defaultValue={
                       editingAsset?.location === "-"
                         ? ""
-                        : editingAsset?.location ?? ""
+                        : (editingAsset?.location ?? "")
                     }
                     placeholder="Contoh: Garut"
                   />
@@ -1830,7 +1770,7 @@ export default function ProfilePage() {
                     defaultValue={
                       editingAsset?.detail === "-"
                         ? ""
-                        : editingAsset?.detail ?? ""
+                        : (editingAsset?.detail ?? "")
                     }
                     placeholder="2.5 Hektar atau Z 8201 AB"
                   />
