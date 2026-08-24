@@ -3,64 +3,58 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { RouteMap } from "@/components/maps/RouteMap";
 import { Search, Scale, MapPin, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
-const all = [
-  {
-    id: "LOAD-2026-0821",
-    name: "Cabai Merah Keriting",
-    kg: 5000,
-    origin: "Garut",
-    destination: "Jakarta",
-    price: 4500000,
-    urgent: true,
-  },
-  {
-    id: "LOAD-2026-0805",
-    name: "Bawang Merah",
-    kg: 3200,
-    origin: "Brebes",
-    destination: "Bandung",
-    price: 2100000,
-  },
-  {
-    id: "LOAD-2026-0801",
-    name: "Tomat Apel",
-    kg: 2800,
-    origin: "Sukabumi",
-    destination: "Tangerang",
-    price: 1850000,
-  },
-  {
-    id: "LOAD-2026-0794",
-    name: "Kentang Granola",
-    kg: 4500,
-    origin: "Dieng",
-    destination: "Bekasi",
-    price: 3200000,
-  },
-  {
-    id: "LOAD-2026-0788",
-    name: "Jagung Manis",
-    kg: 6000,
-    origin: "Jember",
-    destination: "Surabaya",
-    price: 2750000,
-  },
-  {
-    id: "LOAD-2026-0772",
-    name: "Pisang Cavendish",
-    kg: 3800,
-    origin: "Lumajang",
-    destination: "Jakarta",
-    price: 2400000,
-    urgent: true,
-  },
-];
+import { useEffect, useMemo, useState } from "react";
+import { panenlinkApi, type MatchResult } from "@/shared/lib/panenLinkApi";
+
+type LoadRow = {
+  id: string;
+  name: string;
+  kg: number;
+  origin: string;
+  destination: string;
+  price: number;
+  urgent?: boolean;
+};
+
+// Backend doesn't resolve node_id -> place name yet, so we can only
+// show what it actually gives us. Keep this obvious in the UI rather
+// than inventing city names.
+function toLoadRow(m: MatchResult): LoadRow {
+  return {
+    id: m.harvest_id,
+    name: m.commodity,
+    kg: m.volume_kg,
+    origin: `Node ${m.node_id}`,
+    destination: m.truck_id ? `Truck ${m.truck_id}` : "Belum ditugaskan",
+    price: m.estimated_revenue_idr ?? 0,
+    urgent: m.status === "UNMATCHED",
+  };
+}
+
 export default function Page() {
+  const [rowsFromApi, setRowsFromApi] = useState<LoadRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState(""),
     [commodity, setCommodity] = useState("all"),
-    [max, setMax] = useState(10000),
-    [selected, setSelected] = useState(all[0]);
+    [max, setMax] = useState(10000);
+
+  useEffect(() => {
+    panenlinkApi
+      .getLoads()
+      .then((data) => setRowsFromApi(data.map(toLoadRow)))
+      .catch((err) => {
+        console.error(err);
+        setRowsFromApi([]); // fail closed to empty, not fake data
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const all = rowsFromApi ?? [];
+  const [selected, setSelected] = useState<LoadRow | null>(null);
+  useEffect(() => {
+    if (!selected && all.length) setSelected(all[0]);
+  }, [all, selected]);
+
   const rows = useMemo(
     () =>
       all.filter(
@@ -71,8 +65,9 @@ export default function Page() {
             .toLowerCase()
             .includes(q.toLowerCase()),
       ),
-    [q, commodity, max],
+    [all, q, commodity, max],
   );
+
   return (
     <AppShell flush>
       <div className="filterbar">
@@ -84,10 +79,7 @@ export default function Page() {
             placeholder="Cari lokasi, komoditas, ID..."
           />
         </label>
-        <select
-          value={commodity}
-          onChange={(e) => setCommodity(e.target.value)}
-        >
+        <select value={commodity} onChange={(e) => setCommodity(e.target.value)}>
           <option value="all">Semua Komoditas</option>
           <option value="cabai">Cabai</option>
           <option value="bawang">Bawang</option>
@@ -109,12 +101,26 @@ export default function Page() {
       <div className="split">
         <section className="load-list">
           <h3>Muatan tersedia</h3>
+          {loading && <p>Memuat...</p>}
+          {!loading && !rows.length && (
+            <div className="empty-load">
+              <h2>Tidak ada muatan</h2>
+              <button
+                className="button primary"
+                onClick={() => {
+                  setQ("");
+                  setCommodity("all");
+                  setMax(10000);
+                }}
+              >
+                Reset Filter
+              </button>
+            </div>
+          )}
           {rows.map((x) => (
             <article
               onClick={() => setSelected(x)}
-              className={
-                selected.id === x.id ? "load-card selected" : "load-card"
-              }
+              className={selected?.id === x.id ? "load-card selected" : "load-card"}
               key={x.id}
             >
               <header>
@@ -139,30 +145,17 @@ export default function Page() {
               </footer>
             </article>
           ))}
-          {!rows.length && (
-            <div className="empty-load">
-              <h2>Tidak ada muatan</h2>
-              <button
-                className="button primary"
-                onClick={() => {
-                  setQ("");
-                  setCommodity("all");
-                  setMax(10000);
-                }}
-              >
-                Reset Filter
-              </button>
-            </div>
-          )}
         </section>
         <section className="map">
-          <RouteMap initial={selected.origin} />
-          <div className="map-tip">
-            <b>{selected.name}</b>
-            <small>
-              {selected.origin} → {selected.destination}
-            </small>
-          </div>
+          {selected && <RouteMap initial={selected.origin} />}
+          {selected && (
+            <div className="map-tip">
+              <b>{selected.name}</b>
+              <small>
+                {selected.origin} → {selected.destination}
+              </small>
+            </div>
+          )}
         </section>
       </div>
     </AppShell>
