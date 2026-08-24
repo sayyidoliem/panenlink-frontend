@@ -1,10 +1,26 @@
 "use client";
 import { AppShell } from "@/components/layout/AppShell";
-import { Bot, Send, Trash2 } from "lucide-react";
+import { Bot, FileDown, Send, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { downloadAiConversationPdf } from "@/shared/lib/pdfDocuments";
+import { useApp } from "@/shared/app/AppProvider";
+import { useUiTranslation } from "@/shared/app/useUiTranslation";
 type M = { from: "user" | "bot"; text: string };
-const answer = (q: string) => {
+const answer = (q: string, lang: "id" | "en") => {
   const s = q.toLowerCase();
+  if (lang === "en") {
+    if (s.includes("load") || s.includes("muatan"))
+      return "To post a load, open Post Load, then fill commodity, weight, schedule, location, and vehicle.";
+    if (s.includes("verif"))
+      return "Open Profile and upload KTP, SIM, STNK, or land certificate. New uploads start as pending.";
+    if (s.includes("map") || s.includes("location") || s.includes("peta"))
+      return "Use map search or the device location button. PanenLink uses Photon/Nominatim and OpenStreetMap.";
+    if (s.includes("driver") || s.includes("whatsapp"))
+      return "The WhatsApp button on orders opens WhatsApp with an auto-filled load message.";
+    if (s.includes("password") || s.includes("pin"))
+      return "Open Settings > Account Security to change password, PIN, or 2FA.";
+    return "I can help with loads, drivers, maps, verification, payments, accounts, and PanenLink settings.";
+  }
   if (s.includes("muatan"))
     return "Untuk memasang muatan, buka menu Post Muatan, isi komoditas, berat, jadwal, lokasi, dan kendaraan.";
   if (s.includes("verifikasi"))
@@ -18,6 +34,17 @@ const answer = (q: string) => {
   return "Saya dapat membantu tentang muatan, driver, peta, verifikasi, pembayaran, akun, dan pengaturan PanenLink.";
 };
 export default function Page() {
+  const { lang } = useApp();
+  const t = useUiTranslation([
+    "Asisten AI PanenLink",
+    "Ringkas operasional, bantu dokumen, dan buat laporan PDF dari percakapan Anda.",
+    "Generate laporan",
+    "Unduh ringkasan percakapan AI menjadi PDF operasional.",
+    "Bantuan cepat",
+    "Topik muatan, driver, dokumen, lokasi, akun, dan pengaturan.",
+    "Tanyakan sesuatu...",
+    "Halo, saya Asisten PanenLink. Apa yang dapat saya bantu?",
+  ]);
   const [m, setM] = useState<M[]>([
       {
         from: "bot",
@@ -36,27 +63,74 @@ export default function Page() {
     setM((x) => [
       ...x,
       { from: "user", text },
-      { from: "bot", text: answer(text) },
+      { from: "bot", text: answer(text, lang) },
     ]);
     setQ("");
+  };
+  const generateReport = () => {
+    downloadAiConversationPdf(
+      "Ringkasan Aktivitas Asisten AI",
+      m.length
+        ? m
+        : [
+            {
+              from: "bot",
+              text: "Belum ada percakapan untuk diringkas.",
+            },
+          ],
+    );
   };
   return (
     <AppShell>
       <div className="chat-page">
         <header>
-          <Bot />
+          <span className="chat-hero-icon">
+            <Bot />
+          </span>
           <div>
-            <h1>Asisten AI PanenLink</h1>
-            <p>Chatbot bantuan lokal untuk operasional PanenLink</p>
+            <h1>{t("Asisten AI PanenLink")}</h1>
+            <p>
+              {t(
+                "Ringkas operasional, bantu dokumen, dan buat laporan PDF dari percakapan Anda.",
+              )}
+            </p>
           </div>
-          <button onClick={() => setM([])}>
-            <Trash2 />
-          </button>
+          <div className="chat-head-actions">
+            <button onClick={generateReport} aria-label={t("Generate laporan")}>
+              <FileDown />
+            </button>
+            <button onClick={() => setM([])}>
+              <Trash2 />
+            </button>
+          </div>
         </header>
+        <section className="chat-overview">
+          <article>
+            <Sparkles />
+            <div>
+              <strong>{t("Generate laporan")}</strong>
+              <p>{t("Unduh ringkasan percakapan AI menjadi PDF operasional.")}</p>
+            </div>
+          </article>
+          <article>
+            <Bot />
+            <div>
+              <strong>{t("Bantuan cepat")}</strong>
+              <p>
+                {t(
+                  "Topik muatan, driver, dokumen, lokasi, akun, dan pengaturan.",
+                )}
+              </p>
+            </div>
+          </article>
+        </section>
         <main>
           {m.map((x, i) => (
             <div key={i} className={`bubble ${x.from}`}>
-              {x.text}
+              {x.from === "bot" &&
+              x.text === "Halo, saya Asisten PanenLink. Apa yang dapat saya bantu?"
+                ? t("Halo, saya Asisten PanenLink. Apa yang dapat saya bantu?")
+                : x.text}
             </div>
           ))}
         </main>
@@ -65,7 +139,7 @@ export default function Page() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Tanyakan sesuatu..."
+            placeholder={t("Tanyakan sesuatu...")}
           />
           <button onClick={send}>
             <Send />

@@ -8,8 +8,10 @@ import {
   FileText,
   IdCard,
   LandPlot,
+  Mail,
   MapPin,
   Pencil,
+  Phone,
   Plus,
   RotateCcw,
   Star,
@@ -25,6 +27,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useApp } from "@/shared/app/AppProvider";
+import { useUiTranslation } from "@/shared/app/useUiTranslation";
 
 type AssetType = "field" | "truck";
 type DocumentStatus = "Verified" | "Pending" | "Not Uploaded";
@@ -132,6 +135,29 @@ function readStoredValue<T>(key: string, fallback: T): T {
 
 export default function ProfilePage() {
   const { account, updateAccount } = useApp();
+  const t = useUiTranslation([
+    "Edit Profil",
+    "Akun Terverifikasi - Gold",
+    "Member since Jan 2024",
+    "Muatan",
+    "Profil Bisnis",
+    "Siap menerima mitra logistik dan pembeli baru",
+    "Dokumen inti aktif, aset tersimpan, dan data kontak sudah siap untuk proses matching muatan.",
+    "98% lengkap",
+    "Verifikasi Identitas & Dokumen Usaha",
+    "Aset Pertanian & Logistik",
+    "Kelola lahan dan armada yang terhubung dengan akun.",
+    "Tambah Lahan / Armada",
+    "Ulasan Mitra",
+    "Kelengkapan",
+    "Rating",
+    "Edit foto profil",
+    "Unggah",
+    "Ganti",
+    "Lahan",
+    "Armada",
+    "dokumen terverifikasi",
+  ]);
 
   const [modal, setModal] = useState<ProfileModal>(null);
   const [assets, setAssets] = useState<ProfileAsset[]>(defaultAssets);
@@ -434,95 +460,131 @@ export default function ProfilePage() {
     setAssets(defaultAssets);
   };
 
+  const verifiedCount = documents.filter(
+    (document) => document.status === "Verified",
+  ).length;
+
   return (
     <AppShell>
-      <div className="page">
+      <div className="page profile-page">
         <section className="card profile-hero">
-          <label
-            className="profile-photo profile-photo-editable"
-            title="Klik untuk mengganti foto profil"
-          >
-            {account.photo
-              ? account.photo
-              : getInitials(account.name || "Haji Supriatna")}
-
-            <span className="profile-photo-action">
-              <Camera aria-hidden="true" />
-            </span>
-
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleProfilePhoto}
-            />
-          </label>
-
-          <div>
-            <div className="profile-title">
-              <h1>{account.name || "Pak Haji Supriatna"}</h1>
-
-              {account.verified && (
-                <i className="profile-verified">
-                  <Verified aria-hidden="true" />
-                  Akun Terverifikasi - Level Gold
-                </i>
+          <div className="profile-hero-main">
+            <label
+              className="profile-photo profile-photo-editable"
+              title={t("Edit foto profil")}
+            >
+              {account.photo ? (
+                <img
+                  src={account.photo}
+                  alt={account.name || "Foto profil"}
+                />
+              ) : (
+                getInitials(account.name || "Haji Supriatna")
               )}
-            </div>
 
-            <h3>{account.role || "Petani Utama & Pengumpul"}</h3>
-
-            <p>
-              <span>
-                <MapPin aria-hidden="true" />
-                {account.location || "Garut, Jawa Barat"}
+              <span className="profile-photo-action">
+                <Camera aria-hidden="true" />
               </span>
 
-              <span>
-                <Calendar aria-hidden="true" />
-                Member since Jan 2024
-              </span>
-            </p>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleProfilePhoto}
+              />
+            </label>
 
-            <div className="profile-contact">
-              <span>{account.email}</span>
-              <span>+{account.phone}</span>
+            <div className="profile-hero-copy">
+              <div className="profile-title">
+                <h1>{account.name || "Pak Haji Supriatna"}</h1>
+                {account.verified && (
+                  <i className="profile-verified">
+                    <Verified aria-hidden="true" />
+                    {t("Akun Terverifikasi - Gold")}
+                  </i>
+                )}
+              </div>
+
+              <h3>{account.role || "Petani Utama & Pengumpul"}</h3>
+
+              <p className="profile-meta">
+                <span>
+                  <MapPin aria-hidden="true" />
+                  {account.location || "Garut, Jawa Barat"}
+                </span>
+                <span>
+                  <Calendar aria-hidden="true" />
+                  {t("Member since Jan 2024")}
+                </span>
+              </p>
+
+              <div className="profile-contact">
+                <span>
+                  <Mail aria-hidden="true" />
+                  {account.email}
+                </span>
+                <span>
+                  <Phone aria-hidden="true" />
+                  +{account.phone}
+                </span>
+              </div>
+
+              <Button variant="outline" onClick={() => setModal("profile")}>
+                <Pencil aria-hidden="true" />
+                {t("Edit Profil")}
+              </Button>
             </div>
-
-            <Button variant="outline" onClick={() => setModal("profile")}>
-              <Pencil aria-hidden="true" />
-              Edit Profil
-            </Button>
           </div>
 
-          <aside>
+          <aside className="profile-hero-stats">
             <b>
               42
-              <small>Muatan</small>
+              <small>{t("Muatan")}</small>
             </b>
-
-            <span className="profile-stat-separator" />
-
             <b>
               98%
-              <small>Completion</small>
+              <small>{t("Kelengkapan")}</small>
             </b>
-
-            <span className="profile-stat-separator" />
-
             <b className="profile-stat-rating">
               <span>
                 4.9
                 <Star aria-hidden="true" />
               </span>
-
-              <small>Rating</small>
+              <small>{t("Rating")}</small>
             </b>
           </aside>
         </section>
 
         <div className="profile-grid">
-          <section>
-            <h2>Verifikasi Identitas & Dokumen Usaha</h2>
+          <section className="profile-column">
+            <section className="card profile-highlight">
+              <div>
+                <small>{t("Profil Bisnis")}</small>
+                <strong>
+                  {t("Siap menerima mitra logistik dan pembeli baru")}
+                </strong>
+                <p>
+                  {t(
+                    "Dokumen inti aktif, aset tersimpan, dan data kontak sudah siap untuk proses matching muatan.",
+                  )}
+                </p>
+              </div>
+              <div className="profile-complete">
+                <strong>98%</strong>
+                <small>{t("98% lengkap")}</small>
+                <span className="profile-complete-bar" aria-hidden="true">
+                  <i style={{ width: "98%" }} />
+                </span>
+              </div>
+            </section>
+
+            <div className="profile-section-head">
+              <div>
+                <h2>{t("Verifikasi Identitas & Dokumen Usaha")}</h2>
+                <p>
+                  {verifiedCount}/{documents.length} {t("dokumen terverifikasi")}
+                </p>
+              </div>
+            </div>
 
             {documents.map((document) => {
               const DocumentIcon =
@@ -556,7 +618,7 @@ export default function ProfilePage() {
                           ? "pending"
                           : document.status === "Not Uploaded"
                             ? "missing"
-                            : ""
+                            : "verified"
                       }
                     >
                       {document.status === "Verified" && (
@@ -569,7 +631,9 @@ export default function ProfilePage() {
                     <label className="verify-upload">
                       <Upload aria-hidden="true" />
 
-                      {document.status === "Not Uploaded" ? "Upload" : "Ganti"}
+                      {document.status === "Not Uploaded"
+                        ? t("Unggah")
+                        : t("Ganti")}
 
                       <input
                         type="file"
@@ -596,11 +660,11 @@ export default function ProfilePage() {
             })}
           </section>
 
-          <section>
+          <section className="profile-column">
             <div className="profile-section-head">
               <div>
-                <h2>Aset Pertanian & Logistik</h2>
-                <p>Kelola lahan dan armada yang terhubung dengan akun.</p>
+                <h2>{t("Aset Pertanian & Logistik")}</h2>
+                <p>{t("Kelola lahan dan armada yang terhubung dengan akun.")}</p>
               </div>
 
               <div className="profile-asset-actions">
@@ -615,14 +679,14 @@ export default function ProfilePage() {
 
                 <Button variant="ghost" onClick={openAddAssetModal}>
                   <Plus aria-hidden="true" />
-                  Tambah Lahan / Armada
+                  {t("Tambah Lahan / Armada")}
                 </Button>
               </div>
             </div>
 
             <div className="asset-grid">
               {assets.map((asset) => (
-                <article key={asset.id}>
+                <article className="asset-card" key={asset.id}>
                   <div
                     className={`asset-image ${asset.type}`}
                     style={{
@@ -638,7 +702,7 @@ export default function ProfilePage() {
                         <Truck aria-hidden="true" />
                       )}
 
-                      {asset.type === "field" ? "Lahan" : "Armada"}
+                      {asset.type === "field" ? t("Lahan") : t("Armada")}
                     </span>
                   </div>
 
@@ -685,13 +749,13 @@ export default function ProfilePage() {
                   onClick={openAddAssetModal}
                 >
                   <Plus aria-hidden="true" />
-                  Tambah Lahan / Armada
+                  {t("Tambah Lahan / Armada")}
                 </button>
               )}
             </div>
 
             <div className="profile-review-section">
-              <h2>Ulasan Mitra</h2>
+              <h2>{t("Ulasan Mitra")}</h2>
 
               <article className="card review">
                 <div className="review-head">
