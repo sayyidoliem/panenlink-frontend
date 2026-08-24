@@ -9,6 +9,15 @@ import {
 } from "react";
 export type Theme = "light" | "dark" | "system";
 export type Lang = "id" | "en";
+export type AlertTone = "info" | "success" | "warning";
+export type AlertItem = {
+  id: string;
+  title: string;
+  body: string;
+  tone: AlertTone;
+  time: string;
+  read: boolean;
+};
 export type Account = {
   name: string;
   email: string;
@@ -24,11 +33,15 @@ type State = {
   lang: Lang;
   account: Account;
   notifications: Record<string, boolean>;
+  alerts: AlertItem[];
   security: { twoFactor: boolean; pin: string; passwordChanged: string };
   setTheme: (v: Theme) => void;
   setLang: (v: Lang) => void;
   updateAccount: (v: Partial<Account>) => void;
   setNotifications: (v: Record<string, boolean>) => void;
+  pushAlert: (v: Omit<AlertItem, "id" | "time" | "read">) => void;
+  markAlertsRead: () => void;
+  removeAlert: (id: string) => void;
   setSecurity: (v: Partial<State["security"]>) => void;
   t: (id: string) => string;
 };
@@ -73,6 +86,24 @@ const dict: Record<Lang, Record<string, string>> = {
     search: "Search",
   },
 };
+const defaultAlerts: AlertItem[] = [
+  {
+    id: "alert-load-1",
+    title: "Muatan aktif bergerak",
+    body: "Cabai Merah Garut - Jakarta telah menempuh 65% perjalanan.",
+    tone: "info",
+    time: "Baru saja",
+    read: false,
+  },
+  {
+    id: "alert-doc-1",
+    title: "Dokumen diverifikasi",
+    body: "KTP akun Anda sudah terverifikasi oleh PanenLink.",
+    tone: "success",
+    time: "12 menit lalu",
+    read: false,
+  },
+];
 const C = createContext<State | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light"),
@@ -83,6 +114,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       payout: true,
       trends: false,
     }),
+    [alerts, setAlerts] = useState<AlertItem[]>(defaultAlerts),
     [security, setSecurityState] = useState({
       twoFactor: true,
       pin: "123456",
@@ -97,6 +129,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLang(d.lang || "id");
         setAccount({ ...defaults, ...d.account });
         setNotificationsState(d.notifications || notifications);
+        setAlerts(d.alerts || defaultAlerts);
         setSecurityState(d.security || security);
       }
     } catch {}
@@ -110,24 +143,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = lang;
     localStorage.setItem(
       "pl_preferences",
-      JSON.stringify({ theme, lang, account, notifications, security }),
+      JSON.stringify({ theme, lang, account, notifications, alerts, security }),
     );
-  }, [theme, lang, account, notifications, security]);
+  }, [theme, lang, account, notifications, alerts, security]);
   const value = useMemo<State>(
     () => ({
       theme,
       lang,
       account,
       notifications,
+      alerts,
       security,
       setTheme,
       setLang,
       updateAccount: (v) => setAccount((a) => ({ ...a, ...v })),
       setNotifications: setNotificationsState,
+      pushAlert: (v) =>
+        setAlerts((current) => [
+          {
+            id: `alert-${Date.now()}-${current.length}`,
+            title: v.title,
+            body: v.body,
+            tone: v.tone,
+            time: "Baru saja",
+            read: false,
+          },
+          ...current,
+        ]),
+      markAlertsRead: () =>
+        setAlerts((current) =>
+          current.map((alert) => ({ ...alert, read: true })),
+        ),
+      removeAlert: (id) =>
+        setAlerts((current) => current.filter((alert) => alert.id !== id)),
       setSecurity: (v) => setSecurityState((s) => ({ ...s, ...v })),
       t: (id) => dict[lang][id] || id,
     }),
-    [theme, lang, account, notifications, security],
+    [theme, lang, account, notifications, alerts, security],
   );
   return <C.Provider value={value}>{children}</C.Provider>;
 }
