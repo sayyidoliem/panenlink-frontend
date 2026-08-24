@@ -81,8 +81,7 @@ export function RouteMap({
     ...DEFAULT_ORIGIN,
     label: initial || DEFAULT_ORIGIN.label,
   });
-  const [destination, setDestination] =
-    useState<Place>(DEFAULT_DESTINATION);
+  const [destination, setDestination] = useState<Place>(DEFAULT_DESTINATION);
   const [focus, setFocus] = useState<FocusField>("destination");
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Place[]>([]);
@@ -143,14 +142,11 @@ export function RouteMap({
         keyboard: false,
       }).addTo(map);
 
-      destMarkerRef.current = L.marker(
-        [destination.lat, destination.lon],
-        {
-          icon: pinIcon("destination"),
-          interactive: false,
-          keyboard: false,
-        },
-      ).addTo(map);
+      destMarkerRef.current = L.marker([destination.lat, destination.lon], {
+        icon: pinIcon("destination"),
+        interactive: false,
+        keyboard: false,
+      }).addTo(map);
 
       routeLineRef.current = L.polyline([], {
         className: "map-live-route",
@@ -197,10 +193,9 @@ export function RouteMap({
     originMarkerRef.current?.setLatLng([origin.lat, origin.lon]);
     destMarkerRef.current?.setLatLng([destination.lat, destination.lon]);
 
-    const coords =
-      routeInfo?.coordinates?.length
-        ? routeInfo.coordinates
-        : straightLine(origin, destination);
+    const coords = routeInfo?.coordinates?.length
+      ? routeInfo.coordinates
+      : straightLine(origin, destination);
 
     line.setLatLngs(coords as LatLngExpression[]);
 
@@ -352,9 +347,7 @@ export function RouteMap({
         <Search />
         <input
           value={q}
-          placeholder={
-            focus === "origin" ? t("Pilih asal") : t("Pilih tujuan")
-          }
+          placeholder={focus === "origin" ? t("Pilih asal") : t("Pilih tujuan")}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) =>
             e.key === "Enter" && (e.preventDefault(), void search())
@@ -371,7 +364,11 @@ export function RouteMap({
       {items.length > 0 && (
         <div className="map-results">
           {items.map((x, i) => (
-            <button type="button" key={`${x.label}-${i}`} onClick={() => choose(x)}>
+            <button
+              type="button"
+              key={`${x.label}-${i}`}
+              onClick={() => choose(x)}
+            >
               {x.label}
             </button>
           ))}
@@ -419,9 +416,7 @@ export function RouteMap({
               {t("Estimasi tiba")}{" "}
               {routeInfo ? formatDuration(routeInfo.durationMin) : "..."}
             </strong>
-            <span>
-              {routing ? t("Rute dihitung") : t("Armada aktif")}
-            </span>
+            <span>{routing ? t("Rute dihitung") : t("Armada aktif")}</span>
           </div>
         </div>
         <div ref={mapEl} className="map-canvas" role="presentation" />

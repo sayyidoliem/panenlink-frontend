@@ -177,11 +177,7 @@ export default function Landing() {
           </ol>
         </section>
 
-        <section
-          id="persona"
-          className="personas reveal"
-          ref={personaRef}
-        >
+        <section id="persona" className="personas reveal" ref={personaRef}>
           <article>
             <Leaf />
             <h2>For Farmers</h2>

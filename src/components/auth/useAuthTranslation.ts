@@ -29,8 +29,7 @@ const fallbackEn: Dictionary = {
   "Konfirmasi Kata Sandi": "Confirm Password",
   "Minimal 8 karakter": "Minimum 8 characters",
   "Ulangi kata sandi": "Repeat your password",
-  "Saya menyetujui Syarat & Ketentuan.":
-    "I agree to the Terms & Conditions.",
+  "Saya menyetujui Syarat & Ketentuan.": "I agree to the Terms & Conditions.",
   "Daftar Akun Pemilik Panen": "Create Grower Account",
   "Sudah punya akun?": "Already have an account?",
   "Masuk di sini": "Sign in here",

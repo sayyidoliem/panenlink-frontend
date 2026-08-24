@@ -474,10 +474,7 @@ export default function ProfilePage() {
               title={t("Edit foto profil")}
             >
               {account.photo ? (
-                <img
-                  src={account.photo}
-                  alt={account.name || "Foto profil"}
-                />
+                <img src={account.photo} alt={account.name || "Foto profil"} />
               ) : (
                 getInitials(account.name || "Haji Supriatna")
               )}
@@ -523,8 +520,7 @@ export default function ProfilePage() {
                   {account.email}
                 </span>
                 <span>
-                  <Phone aria-hidden="true" />
-                  +{account.phone}
+                  <Phone aria-hidden="true" />+{account.phone}
                 </span>
               </div>
 
@@ -581,7 +577,8 @@ export default function ProfilePage() {
               <div>
                 <h2>{t("Verifikasi Identitas & Dokumen Usaha")}</h2>
                 <p>
-                  {verifiedCount}/{documents.length} {t("dokumen terverifikasi")}
+                  {verifiedCount}/{documents.length}{" "}
+                  {t("dokumen terverifikasi")}
                 </p>
               </div>
             </div>
@@ -664,7 +661,9 @@ export default function ProfilePage() {
             <div className="profile-section-head">
               <div>
                 <h2>{t("Aset Pertanian & Logistik")}</h2>
-                <p>{t("Kelola lahan dan armada yang terhubung dengan akun.")}</p>
+                <p>
+                  {t("Kelola lahan dan armada yang terhubung dengan akun.")}
+                </p>
               </div>
 
               <div className="profile-asset-actions">

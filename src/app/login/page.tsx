@@ -3,18 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import {
-  browserLocalPersistence,
-  browserSessionPersistence,
-  sendPasswordResetEmail,
-  setPersistence,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-} from "firebase/auth";
 
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { useAuthTranslation } from "@/components/auth/useAuthTranslation";
-import { auth, googleProvider } from "@/shared/lib/firebase";
+import { createClient } from "@/shared/lib/supabase/client";
 
 function GoogleIcon() {
   return (
@@ -39,41 +31,65 @@ function GoogleIcon() {
   );
 }
 
-function getFirebaseErrorMessage(error: unknown) {
-  const code =
+function getSupabaseErrorMessage(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof error.message === "string"
+        ? error.message.toLowerCase()
+        : "";
+
+  const status =
     typeof error === "object" &&
     error !== null &&
-    "code" in error &&
-    typeof error.code === "string"
-      ? error.code
-      : "";
+    "status" in error &&
+    typeof error.status === "number"
+      ? error.status
+      : 0;
 
-  switch (code) {
-    case "auth/invalid-email":
-      return "Format email tidak valid.";
-    case "auth/missing-password":
-      return "Kata sandi wajib diisi.";
-    case "auth/invalid-credential":
-    case "auth/user-not-found":
-    case "auth/wrong-password":
-      return "Email atau kata sandi salah.";
-    case "auth/user-disabled":
-      return "Akun ini telah dinonaktifkan.";
-    case "auth/too-many-requests":
-      return "Terlalu banyak percobaan login. Silakan coba kembali nanti.";
-    case "auth/network-request-failed":
-      return "Koneksi internet bermasalah. Silakan coba kembali.";
-    case "auth/popup-closed-by-user":
-      return "Proses masuk dengan Google dibatalkan.";
-    case "auth/popup-blocked":
-      return "Popup Google diblokir oleh browser.";
-    case "auth/account-exists-with-different-credential":
-      return "Email ini sudah terdaftar menggunakan metode login lain.";
-    case "auth/operation-not-allowed":
-      return "Metode login ini belum diaktifkan di Firebase Console.";
-    default:
-      return "Login gagal. Silakan periksa data Anda dan coba kembali.";
+  if (message.includes("invalid login credentials")) {
+    return "Email atau kata sandi salah.";
   }
+
+  if (
+    message.includes("email not confirmed") ||
+    message.includes("email_not_confirmed")
+  ) {
+    return "Email belum dikonfirmasi. Silakan periksa kotak masuk Anda.";
+  }
+
+  if (message.includes("invalid email")) {
+    return "Format email tidak valid.";
+  }
+
+  if (
+    status === 429 ||
+    message.includes("rate limit") ||
+    message.includes("too many requests")
+  ) {
+    return "Terlalu banyak percobaan login. Silakan coba kembali nanti.";
+  }
+
+  if (
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("fetch")
+  ) {
+    return "Koneksi internet bermasalah. Silakan coba kembali.";
+  }
+
+  if (message.includes("provider is not enabled")) {
+    return "Metode login Google belum diaktifkan di Supabase.";
+  }
+
+  if (message.includes("cancelled") || message.includes("canceled")) {
+    return "Proses masuk dengan Google dibatalkan.";
+  }
+
+  return "Login gagal. Silakan periksa data Anda dan coba kembali.";
 }
 
 export default function Page() {
@@ -101,11 +117,12 @@ export default function Page() {
     if (loading) return;
 
     const formData = new FormData(event.currentTarget);
+
     const email = String(formData.get("email") ?? "")
       .trim()
       .toLowerCase();
+
     const password = String(formData.get("password") ?? "");
-    const remember = formData.get("remember") === "on";
 
     if (!email || !password) {
       window.alert("Email dan kata sandi wajib diisi.");
@@ -115,16 +132,21 @@ export default function Page() {
     setLoading(true);
 
     try {
-      await setPersistence(
-        auth,
-        remember ? browserLocalPersistence : browserSessionPersistence,
-      );
+      const supabase = createClient();
 
-      await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
 
       router.replace("/dashboard");
+      router.refresh();
     } catch (error) {
-      window.alert(getFirebaseErrorMessage(error));
+      window.alert(getSupabaseErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -136,13 +158,24 @@ export default function Page() {
     setLoading(true);
 
     try {
-      await setPersistence(auth, browserLocalPersistence);
-      await signInWithPopup(auth, googleProvider);
+      const supabase = createClient();
 
-      router.replace("/dashboard");
+      const redirectTo =
+        `${window.location.origin}` + "/auth/callback?next=/dashboard";
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
     } catch (error) {
-      window.alert(getFirebaseErrorMessage(error));
-    } finally {
+      window.alert(getSupabaseErrorMessage(error));
+
       setLoading(false);
     }
   };
@@ -160,6 +193,7 @@ export default function Page() {
       window.alert(
         "Masukkan email Anda terlebih dahulu, kemudian pilih Lupa Kata Sandi.",
       );
+
       emailInput?.focus();
       return;
     }
@@ -167,13 +201,24 @@ export default function Page() {
     setLoading(true);
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      const supabase = createClient();
+
+      const redirectTo =
+        `${window.location.origin}` + "/auth/callback?next=/update-password";
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+
+      if (error) {
+        throw error;
+      }
 
       window.alert(
         "Tautan pengaturan ulang kata sandi telah dikirim ke email Anda.",
       );
     } catch (error) {
-      window.alert(getFirebaseErrorMessage(error));
+      window.alert(getSupabaseErrorMessage(error));
     } finally {
       setLoading(false);
     }
