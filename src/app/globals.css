@@ -382,10 +382,20 @@ td {
 }
 .check {
   display: flex !important;
-  align-items: center;
+  flex-direction: row !important;
+  align-items: flex-start;
   gap: 8px;
   margin: 12px 0;
   font-weight: 500 !important;
+}
+.check input[type="checkbox"] {
+  margin: 0;
+  margin-top: 5px;
+  flex: none;
+  width: auto;
+}
+.check span {
+  line-height: 1.5;
 }
 .form label,
 .form-section label {
@@ -394,6 +404,13 @@ td {
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
+}
+.form label.check,
+.form-section label.check {
+  flex-direction: row;
+  align-items: flex-start;
+  font-size: inherit;
+  font-weight: 500;
 }
 .form input,
 .form-section input,
@@ -675,6 +692,9 @@ body > footer {
   position: absolute;
   right: 30px;
   top: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .auth-box {
   width: min(440px, 100%);
@@ -700,15 +720,28 @@ body > footer {
   color: var(--muted);
 }
 .google {
+  width: 100%;
   padding: 13px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.google svg {
+  width: 20px;
+  height: 20px;
 }
 .divider {
   text-align: center;
   color: var(--muted);
   font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 .auth-switch {
   text-align: center;
@@ -717,6 +750,42 @@ body > footer {
 .row a {
   color: var(--secondary);
   font-weight: 700;
+}
+.auth-lang-switch {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+}
+.auth-lang-switch button,
+.auth-theme-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.auth-lang-switch button {
+  min-width: 40px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+.auth-lang-switch button.active {
+  background: var(--primary);
+  color: #fff;
+}
+.auth-theme-toggle {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--white);
+}
+.auth-theme-toggle svg {
+  width: 18px;
+  height: 18px;
 }
 .filterbar {
   margin-left: 64px;
@@ -1396,6 +1465,10 @@ body > footer {
   .auth-form {
     min-height: 100vh;
   }
+  .auth-tools {
+    right: 16px;
+    top: 16px;
+  }
   .timeline b {
     position: static;
     display: inline-block;
@@ -1520,6 +1593,11 @@ html[data-theme="dark"] textarea,
 html[data-theme="dark"] .modal {
   background: var(--white);
   color: var(--text);
+  border-color: var(--line);
+}
+html[data-theme="dark"] .google {
+  background: #fff;
+  color: #1a1c18;
   border-color: var(--line);
 }
 .avatar {
