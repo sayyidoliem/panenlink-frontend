@@ -116,9 +116,7 @@ export default function Page() {
                 <article className="card bank" key={i}>
                   <i>{t("Utama")}</i>
                   <Landmark />
-                  <b>
-                    Bank {b.bank}
-                  </b>
+                  <b>Bank {b.bank}</b>
                   <p>{b.name}</p>
                   <strong>{b.number}</strong>
                 </article>

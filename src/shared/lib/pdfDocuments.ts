@@ -35,11 +35,7 @@ function sanitizeFileName(value: string) {
     .replace(/[^a-zA-Z0-9-_]/g, "");
 }
 
-function drawDocumentHeader(
-  pdf: jsPDF,
-  title: string,
-  documentNumber: string,
-) {
+function drawDocumentHeader(pdf: jsPDF, title: string, documentNumber: string) {
   const pageWidth = pdf.internal.pageSize.getWidth();
 
   pdf.setFillColor(...COLORS.primaryContainer);
@@ -69,11 +65,7 @@ function drawDocumentHeader(
   pdf.setTextColor(...COLORS.text);
 }
 
-function drawSectionTitle(
-  pdf: jsPDF,
-  title: string,
-  y: number,
-) {
+function drawSectionTitle(pdf: jsPDF, title: string, y: number) {
   pdf.setFillColor(...COLORS.low);
   pdf.roundedRect(16, y, 178, 10, 2, 2, "F");
 
@@ -101,17 +93,11 @@ function drawInformationRow(
   pdf.setFont("helvetica", "bold");
   pdf.setTextColor(...COLORS.text);
 
-  const splitValue = pdf.splitTextToSize(
-    value || "-",
-    108,
-  );
+  const splitValue = pdf.splitTextToSize(value || "-", 108);
 
   pdf.text(splitValue, 76, y);
 
-  const rowHeight = Math.max(
-    8,
-    splitValue.length * 5,
-  );
+  const rowHeight = Math.max(8, splitValue.length * 5);
 
   pdf.setDrawColor(...COLORS.line);
   pdf.line(20, y + rowHeight - 3, 190, y + rowHeight - 3);
@@ -119,12 +105,7 @@ function drawInformationRow(
   return y + rowHeight;
 }
 
-function drawRoute(
-  pdf: jsPDF,
-  origin: string,
-  destination: string,
-  y: number,
-) {
+function drawRoute(pdf: jsPDF, origin: string, destination: string, y: number) {
   pdf.setFillColor(...COLORS.low);
   pdf.roundedRect(16, y, 178, 34, 3, 3, "F");
 
@@ -140,15 +121,9 @@ function drawRoute(
   pdf.setFontSize(9);
   pdf.setTextColor(...COLORS.text);
 
-  const originText = pdf.splitTextToSize(
-    origin,
-    65,
-  );
+  const originText = pdf.splitTextToSize(origin, 65);
 
-  const destinationText = pdf.splitTextToSize(
-    destination,
-    65,
-  );
+  const destinationText = pdf.splitTextToSize(destination, 65);
 
   pdf.text(originText, 20, y + 27);
   pdf.text(destinationText, 190, y + 27, {
@@ -191,18 +166,11 @@ function drawSignatureSection(
 }
 
 function drawFooter(pdf: jsPDF) {
-  const pageHeight =
-    pdf.internal.pageSize.getHeight();
-  const pageWidth =
-    pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const pageWidth = pdf.internal.pageSize.getWidth();
 
   pdf.setDrawColor(...COLORS.line);
-  pdf.line(
-    16,
-    pageHeight - 18,
-    pageWidth - 16,
-    pageHeight - 18,
-  );
+  pdf.line(16, pageHeight - 18, pageWidth - 16, pageHeight - 18);
 
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(7);
@@ -224,131 +192,59 @@ function drawFooter(pdf: jsPDF) {
   );
 }
 
-export function downloadSuratJalanPdf(
-  data: ShipmentDocumentData,
-) {
+export function downloadSuratJalanPdf(data: ShipmentDocumentData) {
   const pdf = new jsPDF({
     orientation: "portrait",
     unit: "mm",
     format: "a4",
   });
 
-  drawDocumentHeader(
-    pdf,
-    "SURAT JALAN",
-    `Nomor: SJ-${data.loadId}`,
-  );
+  drawDocumentHeader(pdf, "SURAT JALAN", `Nomor: SJ-${data.loadId}`);
 
   let y = 45;
 
-  y = drawSectionTitle(
-    pdf,
-    "INFORMASI PENGIRIMAN",
-    y,
-  );
+  y = drawSectionTitle(pdf, "INFORMASI PENGIRIMAN", y);
 
-  y = drawInformationRow(
-    pdf,
-    "ID Muatan",
-    data.loadId,
-    y,
-  );
+  y = drawInformationRow(pdf, "ID Muatan", data.loadId, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Tanggal",
-    data.date,
-    y,
-  );
+  y = drawInformationRow(pdf, "Tanggal", data.date, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Komoditas",
-    data.commodity,
-    y,
-  );
+  y = drawInformationRow(pdf, "Komoditas", data.commodity, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Berat Muatan",
-    data.weight,
-    y,
-  );
+  y = drawInformationRow(pdf, "Berat Muatan", data.weight, y);
 
   y += 4;
 
   y = drawSectionTitle(pdf, "RUTE", y);
-  y = drawRoute(
-    pdf,
-    data.origin,
-    data.destination,
-    y,
-  );
+  y = drawRoute(pdf, data.origin, data.destination, y);
 
-  y = drawSectionTitle(
-    pdf,
-    "INFORMASI ARMADA",
-    y,
-  );
+  y = drawSectionTitle(pdf, "INFORMASI ARMADA", y);
 
-  y = drawInformationRow(
-    pdf,
-    "Nama Pengemudi",
-    data.driverName,
-    y,
-  );
+  y = drawInformationRow(pdf, "Nama Pengemudi", data.driverName, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Nomor Polisi",
-    data.vehiclePlate,
-    y,
-  );
+  y = drawInformationRow(pdf, "Nomor Polisi", data.vehiclePlate, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Jenis Kendaraan",
-    data.vehicleType,
-    y,
-  );
+  y = drawInformationRow(pdf, "Jenis Kendaraan", data.vehicleType, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Status",
-    data.status,
-    y,
-  );
+  y = drawInformationRow(pdf, "Status", data.status, y);
 
   y += 12;
 
-  drawSignatureSection(
-    pdf,
-    "Pengirim",
-    "Pengemudi",
-    y,
-  );
+  drawSignatureSection(pdf, "Pengirim", "Pengemudi", y);
 
   drawFooter(pdf);
 
-  pdf.save(
-    `Surat-Jalan-${sanitizeFileName(data.loadId)}.pdf`,
-  );
+  pdf.save(`Surat-Jalan-${sanitizeFileName(data.loadId)}.pdf`);
 }
 
-export function downloadPodPdf(
-  data: ShipmentDocumentData,
-) {
+export function downloadPodPdf(data: ShipmentDocumentData) {
   const pdf = new jsPDF({
     orientation: "portrait",
     unit: "mm",
     format: "a4",
   });
 
-  drawDocumentHeader(
-    pdf,
-    "PROOF OF DELIVERY",
-    `Nomor: POD-${data.loadId}`,
-  );
+  drawDocumentHeader(pdf, "PROOF OF DELIVERY", `Nomor: POD-${data.loadId}`);
 
   let y = 45;
 
@@ -364,110 +260,45 @@ export function downloadPodPdf(
 
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(8);
-  pdf.text(
-    "Muatan telah diterima oleh pihak penerima",
-    105,
-    y + 16,
-    {
-      align: "center",
-    },
-  );
+  pdf.text("Muatan telah diterima oleh pihak penerima", 105, y + 16, {
+    align: "center",
+  });
 
   pdf.setTextColor(...COLORS.text);
   y += 32;
 
-  y = drawSectionTitle(
-    pdf,
-    "DETAIL PENGIRIMAN",
-    y,
-  );
+  y = drawSectionTitle(pdf, "DETAIL PENGIRIMAN", y);
 
-  y = drawInformationRow(
-    pdf,
-    "ID Muatan",
-    data.loadId,
-    y,
-  );
+  y = drawInformationRow(pdf, "ID Muatan", data.loadId, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Komoditas",
-    data.commodity,
-    y,
-  );
+  y = drawInformationRow(pdf, "Komoditas", data.commodity, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Berat",
-    data.weight,
-    y,
-  );
+  y = drawInformationRow(pdf, "Berat", data.weight, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Tanggal Terkirim",
-    data.date,
-    y,
-  );
+  y = drawInformationRow(pdf, "Tanggal Terkirim", data.date, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Status Pembayaran",
-    "Selesai / Lunas",
-    y,
-  );
+  y = drawInformationRow(pdf, "Status Pembayaran", "Selesai / Lunas", y);
 
   y += 4;
 
   y = drawSectionTitle(pdf, "RUTE PENGIRIMAN", y);
-  y = drawRoute(
-    pdf,
-    data.origin,
-    data.destination,
-    y,
-  );
+  y = drawRoute(pdf, data.origin, data.destination, y);
 
-  y = drawSectionTitle(
-    pdf,
-    "INFORMASI PENGEMUDI",
-    y,
-  );
+  y = drawSectionTitle(pdf, "INFORMASI PENGEMUDI", y);
 
-  y = drawInformationRow(
-    pdf,
-    "Nama Pengemudi",
-    data.driverName,
-    y,
-  );
+  y = drawInformationRow(pdf, "Nama Pengemudi", data.driverName, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Nomor Polisi",
-    data.vehiclePlate,
-    y,
-  );
+  y = drawInformationRow(pdf, "Nomor Polisi", data.vehiclePlate, y);
 
-  y = drawInformationRow(
-    pdf,
-    "Jenis Kendaraan",
-    data.vehicleType,
-    y,
-  );
+  y = drawInformationRow(pdf, "Jenis Kendaraan", data.vehicleType, y);
 
   y += 12;
 
-  drawSignatureSection(
-    pdf,
-    "Pengemudi",
-    "Penerima",
-    y,
-  );
+  drawSignatureSection(pdf, "Pengemudi", "Penerima", y);
 
   drawFooter(pdf);
 
-  pdf.save(
-    `POD-${sanitizeFileName(data.loadId)}.pdf`,
-  );
+  pdf.save(`POD-${sanitizeFileName(data.loadId)}.pdf`);
 }
 
 export function downloadAiConversationPdf(
@@ -480,11 +311,7 @@ export function downloadAiConversationPdf(
     format: "a4",
   });
 
-  drawDocumentHeader(
-    pdf,
-    "LAPORAN ASISTEN AI",
-    `Nomor: AI-${Date.now()}`,
-  );
+  drawDocumentHeader(pdf, "LAPORAN ASISTEN AI", `Nomor: AI-${Date.now()}`);
 
   let y = 45;
 
@@ -507,8 +334,7 @@ export function downloadAiConversationPdf(
     const height = Math.max(20, text.length * 5 + 10);
     const fillColor =
       entry.from === "user" ? COLORS.low : COLORS.primaryContainer;
-    const textColor =
-      entry.from === "user" ? COLORS.text : COLORS.white;
+    const textColor = entry.from === "user" ? COLORS.text : COLORS.white;
     const [fillR, fillG, fillB] = fillColor;
     const [textR, textG, textB] = textColor;
 

@@ -21,17 +21,38 @@ import {
   UserRound,
   Verified,
 } from "lucide-react";
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { useApp } from "@/shared/app/AppProvider";
 import { useUiTranslation } from "@/shared/app/useUiTranslation";
+import { createClient } from "@/shared/lib/supabase/client";
 
 type AssetType = "field" | "truck";
 type DocumentStatus = "Verified" | "Pending" | "Not Uploaded";
 type ProfileModal = "profile" | "asset" | null;
+
+type ProfileData = {
+  id: string;
+  name: string;
+  role: string;
+  location: string;
+  email: string;
+  phone: string;
+  photo: string;
+  verified: boolean;
+  memberSince: string;
+  loadCount: number;
+  completionPercentage: number;
+  rating: number;
+};
 
 type ProfileAsset = {
   id: string;
@@ -41,74 +62,109 @@ type ProfileAsset = {
   location: string;
   detail: string;
   image: string;
+  imagePath: string;
+};
+
+type ProfileAssetRow = {
+  id: unknown;
+  type: unknown;
+  title: unknown;
+  description: unknown;
+  location: unknown;
+  detail: unknown;
+  image_url: unknown;
+  image_path: unknown;
+};
+
+type VerificationDocumentRow = {
+  id: unknown;
+  document_type: unknown;
+  title: unknown;
+  description: unknown;
+  status: unknown;
+  file_name: unknown;
+  file_path: unknown;
 };
 
 type VerificationDocument = {
   id: string;
+  documentType: string;
   title: string;
   description: string;
   status: DocumentStatus;
   fileName: string;
+  filePath: string;
 };
 
-const ASSET_STORAGE_KEY = "pl_profile_assets";
-const DOCUMENT_STORAGE_KEY = "pl_profile_documents";
+const EMPTY_PROFILE: ProfileData = {
+  id: "",
+  name: "-",
+  role: "-",
+  location: "-",
+  email: "-",
+  phone: "0",
+  photo: "",
+  verified: false,
+  memberSince: "-",
+  loadCount: 0,
+  completionPercentage: 0,
+  rating: 0,
+};
 
-const defaultAssets: ProfileAsset[] = [
+const INITIAL_DOCUMENTS = [
   {
-    id: "FIELD-1",
-    type: "field",
-    title: "Lahan Cabai Merah",
-    description: "Lahan produksi cabai merah",
-    location: "Garut",
-    detail: "2.5 Hektar",
-    image:
-      "https://images.unsplash.com/photo-1592921870789-04563d55041c?auto=format&fit=crop&w=700&q=80",
-  },
-  {
-    id: "TRUCK-1",
-    type: "truck",
-    title: "Isuzu Traga Pick-up",
-    description: "Armada distribusi hasil panen",
-    location: "Garut",
-    detail: "Z 8201 AB - Box Pendingin",
-    image:
-      "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=700&q=80",
-  },
-];
-
-const defaultDocuments: VerificationDocument[] = [
-  {
-    id: "ktp",
+    documentType: "ktp",
     title: "KTP",
     description: "Kartu Tanda Penduduk",
-    status: "Verified",
-    fileName: "ktp-haji-supriatna.pdf",
   },
   {
-    id: "sim",
+    documentType: "sim",
     title: "SIM B2",
     description: "Surat Izin Mengemudi",
-    status: "Verified",
-    fileName: "sim-b2-haji-supriatna.pdf",
   },
   {
-    id: "stnk",
+    documentType: "stnk",
     title: "STNK",
     description: "Surat Tanda Nomor Kendaraan",
-    status: "Pending",
-    fileName: "stnk-isuzu-traga.pdf",
   },
   {
-    id: "land",
+    documentType: "land",
     title: "Sertifikat Lahan",
     description: "Dokumen kepemilikan atau pengelolaan lahan",
-    status: "Not Uploaded",
-    fileName: "",
   },
-];
+] as const;
+
+function textFallback(value: unknown) {
+  if (typeof value !== "string") {
+    return "-";
+  }
+
+  const result = value.trim();
+
+  return result || "-";
+}
+
+function phoneFallback(value: unknown) {
+  if (typeof value !== "string") {
+    return "0";
+  }
+
+  const result = value.replace(/\D/g, "");
+
+  return result || "0";
+}
+
+function numberFallback(value: unknown) {
+  const result = Number(value);
+
+  return Number.isFinite(result) ? result : 0;
+}
 
 function getInitials(name: string) {
+  if (!name || name === "-") {
+    return "-";
+  }
+
   return name
     .trim()
     .split(/\s+/)
@@ -119,22 +175,77 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function readStoredValue<T>(key: string, fallback: T): T {
-  try {
-    const storedValue = window.localStorage.getItem(key);
-
-    if (!storedValue) {
-      return fallback;
-    }
-
-    return JSON.parse(storedValue) as T;
-  } catch {
-    return fallback;
+function formatMemberSince(value: string) {
+  if (!value || value === "-") {
+    return "-";
   }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("id-ID", {
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function safeFileName(fileName: string) {
+  return fileName
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase();
+}
+
+function getFileExtension(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  if (extension) {
+    return extension;
+  }
+
+  if (file.type === "image/png") {
+    return "png";
+  }
+
+  if (file.type === "image/jpeg") {
+    return "jpg";
+  }
+
+  if (file.type === "image/webp") {
+    return "webp";
+  }
+
+  if (file.type === "application/pdf") {
+    return "pdf";
+  }
+
+  return "bin";
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "Terjadi kesalahan yang tidak diketahui.";
 }
 
 export default function ProfilePage() {
-  const { account, updateAccount } = useApp();
+  const supabase = createClient();
+
   const t = useUiTranslation([
     "Edit Profil",
     "Akun Terverifikasi - Gold",
@@ -160,51 +271,290 @@ export default function ProfilePage() {
   ]);
 
   const [modal, setModal] = useState<ProfileModal>(null);
-  const [assets, setAssets] = useState<ProfileAsset[]>(defaultAssets);
-  const [documents, setDocuments] =
-    useState<VerificationDocument[]>(defaultDocuments);
+  const [profile, setProfile] = useState<ProfileData>(EMPTY_PROFILE);
+  const [assets, setAssets] = useState<ProfileAsset[]>([]);
+  const [documents, setDocuments] = useState<VerificationDocument[]>([]);
 
   const [assetPreview, setAssetPreview] = useState("");
   const [editingAsset, setEditingAsset] = useState<ProfileAsset | null>(null);
 
-  const [hydrated, setHydrated] = useState(false);
+  const ensureInitialDocuments = useCallback(
+    async (userId: string) => {
+      const { data, error } = await supabase
+        .from("verification_documents")
+        .select("document_type")
+        .eq("user_id", userId);
 
-  useEffect(() => {
-    setAssets(
-      readStoredValue<ProfileAsset[]>(ASSET_STORAGE_KEY, defaultAssets),
-    );
+      if (error) {
+        throw error;
+      }
 
-    setDocuments(
-      readStoredValue<VerificationDocument[]>(
-        DOCUMENT_STORAGE_KEY,
-        defaultDocuments,
-      ),
-    );
+      const existingTypes = new Set(
+        (data ?? []).map((item: { document_type: unknown }) =>
+          String(item.document_type),
+        ),
+      );
 
-    setHydrated(true);
-  }, []);
+      const missingDocuments = INITIAL_DOCUMENTS.filter(
+        (document) => !existingTypes.has(document.documentType),
+      ).map((document) => ({
+        user_id: userId,
+        document_type: document.documentType,
+        title: document.title,
+        description: document.description,
+        status: "Not Uploaded" as DocumentStatus,
+        file_name: "",
+        file_path: "",
+      }));
 
-  useEffect(() => {
-    if (!hydrated) {
-      return;
+      if (missingDocuments.length === 0) {
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from("verification_documents")
+        .insert(missingDocuments);
+
+      if (insertError) {
+        throw insertError;
+      }
+    },
+    [supabase],
+  );
+
+  const loadProfileData = useCallback(async () => {
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        setProfile(EMPTY_PROFILE);
+        setAssets([]);
+        setDocuments([]);
+        return;
+      }
+
+      const authName =
+        user.user_metadata?.full_name ??
+        user.user_metadata?.name ??
+        user.user_metadata?.username ??
+        "-";
+
+      const authPhone =
+        user.phone ??
+        user.user_metadata?.phone ??
+        user.user_metadata?.phone_number ??
+        "0";
+
+      const authPhoto =
+        user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? "";
+
+      const { data: profileRow, error: profileError } = await supabase
+        .from("profiles")
+        .select(
+          [
+            "id",
+            "name",
+            "role",
+            "location",
+            "phone",
+            "photo_url",
+            "verified",
+            "member_since",
+            "load_count",
+            "completion_percentage",
+            "rating",
+          ].join(","),
+        )
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      if (!profileRow) {
+        const { error: createProfileError } = await supabase
+          .from("profiles")
+          .insert({
+            id: user.id,
+            name: textFallback(authName),
+            role: "-",
+            location: "-",
+            phone: phoneFallback(authPhone),
+            photo_url: authPhoto || "",
+            verified: false,
+            member_since: user.created_at,
+            load_count: 0,
+            completion_percentage: 0,
+            rating: 0,
+          });
+
+        if (createProfileError) {
+          throw createProfileError;
+        }
+      }
+
+      await ensureInitialDocuments(user.id);
+
+      const [
+        { data: currentProfile, error: currentProfileError },
+        { data: assetRows, error: assetsError },
+        { data: documentRows, error: documentsError },
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            [
+              "id",
+              "name",
+              "role",
+              "location",
+              "phone",
+              "photo_url",
+              "verified",
+              "member_since",
+              "load_count",
+              "completion_percentage",
+              "rating",
+            ].join(","),
+          )
+          .eq("id", user.id)
+          .single(),
+
+        supabase
+          .from("profile_assets")
+          .select(
+            [
+              "id",
+              "user_id",
+              "type",
+              "title",
+              "description",
+              "location",
+              "detail",
+              "image_url",
+              "image_path",
+            ].join(","),
+          )
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true }),
+
+        supabase
+          .from("verification_documents")
+          .select(
+            [
+              "id",
+              "user_id",
+              "document_type",
+              "title",
+              "description",
+              "status",
+              "file_name",
+              "file_path",
+            ].join(","),
+          )
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (currentProfileError) {
+        throw currentProfileError;
+      }
+
+      if (assetsError) {
+        throw assetsError;
+      }
+
+      if (documentsError) {
+        throw documentsError;
+      }
+
+      setProfile({
+        id: user.id,
+        name: textFallback(currentProfile?.name ?? authName),
+        role: textFallback(currentProfile?.role),
+        location: textFallback(currentProfile?.location),
+        email: textFallback(user.email),
+        phone: phoneFallback(currentProfile?.phone ?? authPhone),
+        photo: String(currentProfile?.photo_url ?? authPhoto ?? ""),
+        verified: Boolean(currentProfile?.verified),
+        memberSince: String(
+          currentProfile?.member_since ?? user.created_at ?? "-",
+        ),
+        loadCount: numberFallback(currentProfile?.load_count),
+        completionPercentage: numberFallback(
+          currentProfile?.completion_percentage,
+        ),
+        rating: numberFallback(currentProfile?.rating),
+      });
+
+      setAssets(
+        ((assetRows as ProfileAssetRow[] | null) ?? []).map((asset) => ({
+          id: String(asset.id),
+          type: asset.type === "truck" ? "truck" : "field",
+          title: textFallback(asset.title),
+          description: textFallback(asset.description),
+          location: textFallback(asset.location),
+          detail: textFallback(asset.detail),
+          image: String(asset.image_url ?? ""),
+          imagePath: String(asset.image_path ?? ""),
+        })),
+      );
+
+      setDocuments(
+        ((documentRows as VerificationDocumentRow[] | null) ?? []).map(
+          (document: VerificationDocumentRow) => {
+            const status: DocumentStatus =
+              document.status === "Verified" ||
+              document.status === "Pending" ||
+              document.status === "Not Uploaded"
+                ? document.status
+                : "Not Uploaded";
+
+            return {
+              id: String(document.id),
+              documentType: String(document.document_type ?? ""),
+              title: textFallback(document.title),
+              description: textFallback(document.description),
+              status,
+              fileName: String(document.file_name ?? ""),
+              filePath: String(document.file_path ?? ""),
+            };
+          },
+        ),
+      );
+    } catch (error) {
+      console.error("Gagal memuat profil Supabase:", error);
+
+      setProfile(EMPTY_PROFILE);
+      setAssets([]);
+      setDocuments([]);
     }
-
-    window.localStorage.setItem(ASSET_STORAGE_KEY, JSON.stringify(assets));
-  }, [assets, hydrated]);
+  }, [ensureInitialDocuments, supabase]);
 
   useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
+    void loadProfileData();
+  }, [loadProfileData]);
 
-    window.localStorage.setItem(
-      DOCUMENT_STORAGE_KEY,
-      JSON.stringify(documents),
-    );
-  }, [documents, hydrated]);
+  useEffect(() => {
+    return () => {
+      if (assetPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(assetPreview);
+      }
+    };
+  }, [assetPreview]);
 
-  const handleProfilePhoto = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePhoto = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+
+    event.target.value = "";
 
     if (!file) {
       return;
@@ -212,60 +562,194 @@ export default function ProfilePage() {
 
     if (!file.type.startsWith("image/")) {
       window.alert("Foto profil harus berupa file gambar.");
-      event.target.value = "";
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
       window.alert("Ukuran foto profil maksimal 2 MB.");
-      event.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    reader.onload = () => {
-      updateAccount({
-        photo: String(reader.result),
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error("Sesi pengguna tidak ditemukan.");
+      }
+
+      const extension = getFileExtension(file);
+      const filePath = `${user.id}/profile-${Date.now()}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("profile-images")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("profile-images")
+        .getPublicUrl(filePath);
+
+      const photoUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+
+      const { error: updateProfileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: user.id,
+            photo_url: photoUrl,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "id",
+          },
+        );
+
+      if (updateProfileError) {
+        await supabase.storage.from("profile-images").remove([filePath]);
+        throw updateProfileError;
+      }
+
+      const { error: updateAuthError } = await supabase.auth.updateUser({
+        data: {
+          avatar_url: photoUrl,
+          picture: photoUrl,
+        },
       });
-    };
 
-    reader.readAsDataURL(file);
-    event.target.value = "";
+      if (updateAuthError) {
+        console.error(
+          "Foto tersimpan, tetapi metadata Auth gagal diperbarui:",
+          updateAuthError,
+        );
+      }
+
+      setProfile((currentProfile) => ({
+        ...currentProfile,
+        photo: photoUrl,
+      }));
+    } catch (error) {
+      console.error("Foto profil gagal diunggah:", error);
+      window.alert(`Foto profil gagal diunggah. ${getErrorMessage(error)}`);
+    }
   };
 
-  const handleProfileSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
 
-    const name = String(formData.get("name") ?? "").trim();
-    const role = String(formData.get("role") ?? "").trim();
-    const location = String(formData.get("location") ?? "").trim();
-    const email = String(formData.get("email") ?? "").trim();
-    const phone = String(formData.get("phone") ?? "").replace(/\D/g, "");
+    const name = textFallback(formData.get("name"));
+    const role = textFallback(formData.get("role"));
+    const location = textFallback(formData.get("location"));
+    const email = textFallback(formData.get("email"));
+    const phone = phoneFallback(formData.get("phone"));
 
-    if (!name || !role || !location || !email || !phone) {
-      window.alert("Seluruh informasi profil wajib diisi.");
-      return;
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error("Sesi pengguna tidak ditemukan.");
+      }
+
+      const authUpdate: {
+        email?: string;
+        data: {
+          full_name: string;
+          name: string;
+          phone: string;
+        };
+      } = {
+        data: {
+          full_name: name,
+          name,
+          phone,
+        },
+      };
+
+      const shouldUpdateEmail =
+        email !== "-" && email !== user.email && email.includes("@");
+
+      if (shouldUpdateEmail) {
+        authUpdate.email = email;
+      }
+
+      const { error: authError } = await supabase.auth.updateUser(authUpdate);
+
+      if (authError) {
+        throw authError;
+      }
+
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          name,
+          role,
+          location,
+          phone,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "id",
+        },
+      );
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      setProfile((currentProfile) => ({
+        ...currentProfile,
+        id: user.id,
+        name,
+        role,
+        location,
+        email: shouldUpdateEmail
+          ? email
+          : textFallback(user.email ?? currentProfile.email),
+        phone,
+      }));
+
+      setModal(null);
+
+      if (shouldUpdateEmail) {
+        window.alert(
+          "Profil berhasil disimpan. Perubahan email mungkin memerlukan konfirmasi melalui email lama atau email baru.",
+        );
+      }
+    } catch (error) {
+      console.error("Profil gagal disimpan:", error);
+      window.alert(`Profil gagal disimpan. ${getErrorMessage(error)}`);
     }
-
-    updateAccount({
-      name,
-      role,
-      location,
-      email,
-      phone,
-    });
-
-    setModal(null);
   };
 
-  const handleDocumentUpload = (
+  const handleDocumentUpload = async (
     documentId: string,
     event: ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
+
+    event.target.value = "";
 
     if (!file) {
       return;
@@ -280,36 +764,102 @@ export default function ProfilePage() {
 
     if (!validTypes.includes(file.type)) {
       window.alert("Dokumen harus berformat PDF, JPG, PNG, atau WEBP.");
-      event.target.value = "";
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
       window.alert("Ukuran dokumen maksimal 5 MB.");
-      event.target.value = "";
       return;
     }
 
-    setDocuments((currentDocuments) =>
-      currentDocuments.map((document) =>
-        document.id === documentId
-          ? {
-              ...document,
-              status: "Pending",
-              fileName: file.name,
-            }
-          : document,
-      ),
-    );
+    const document = documents.find((item) => item.id === documentId);
 
-    window.alert(
-      `${file.name} berhasil diunggah dan sedang menunggu verifikasi.`,
-    );
+    if (!document) {
+      return;
+    }
 
-    event.target.value = "";
+    let uploadedFilePath = "";
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error("Sesi pengguna tidak ditemukan.");
+      }
+
+      uploadedFilePath = `${user.id}/${document.documentType}/${Date.now()}-${safeFileName(file.name)}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("verification-documents")
+        .upload(uploadedFilePath, file, {
+          cacheControl: "3600",
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { error: updateError } = await supabase
+        .from("verification_documents")
+        .update({
+          status: "Pending",
+          file_name: file.name,
+          file_path: uploadedFilePath,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", documentId)
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        await supabase.storage
+          .from("verification-documents")
+          .remove([uploadedFilePath]);
+
+        throw updateError;
+      }
+
+      if (document.filePath && document.filePath !== uploadedFilePath) {
+        const { error: removeOldFileError } = await supabase.storage
+          .from("verification-documents")
+          .remove([document.filePath]);
+
+        if (removeOldFileError) {
+          console.error("Dokumen lama gagal dihapus:", removeOldFileError);
+        }
+      }
+
+      setDocuments((currentDocuments) =>
+        currentDocuments.map((item) =>
+          item.id === documentId
+            ? {
+                ...item,
+                status: "Pending",
+                fileName: file.name,
+                filePath: uploadedFilePath,
+              }
+            : item,
+        ),
+      );
+
+      window.alert(
+        `${file.name} berhasil diunggah dan sedang menunggu verifikasi.`,
+      );
+    } catch (error) {
+      console.error("Dokumen gagal diunggah:", error);
+      window.alert(`Dokumen gagal diunggah. ${getErrorMessage(error)}`);
+    }
   };
 
-  const handleRemoveDocument = (documentId: string) => {
+  const handleRemoveDocument = async (documentId: string) => {
     const document = documents.find((item) => item.id === documentId);
 
     if (!document) {
@@ -322,17 +872,64 @@ export default function ProfilePage() {
       return;
     }
 
-    setDocuments((currentDocuments) =>
-      currentDocuments.map((item) =>
-        item.id === documentId
-          ? {
-              ...item,
-              status: "Not Uploaded",
-              fileName: "",
-            }
-          : item,
-      ),
-    );
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error("Sesi pengguna tidak ditemukan.");
+      }
+
+      const { error: updateError } = await supabase
+        .from("verification_documents")
+        .update({
+          status: "Not Uploaded",
+          file_name: "",
+          file_path: "",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", documentId)
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      if (document.filePath) {
+        const { error: removeFileError } = await supabase.storage
+          .from("verification-documents")
+          .remove([document.filePath]);
+
+        if (removeFileError) {
+          console.error(
+            "File dokumen gagal dihapus dari Storage:",
+            removeFileError,
+          );
+        }
+      }
+
+      setDocuments((currentDocuments) =>
+        currentDocuments.map((item) =>
+          item.id === documentId
+            ? {
+                ...item,
+                status: "Not Uploaded",
+                fileName: "",
+                filePath: "",
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      console.error("Dokumen gagal dihapus:", error);
+      window.alert(`Dokumen gagal dihapus. ${getErrorMessage(error)}`);
+    }
   };
 
   const handleAssetImage = (event: ChangeEvent<HTMLInputElement>) => {
@@ -354,115 +951,348 @@ export default function ProfilePage() {
       return;
     }
 
-    const reader = new FileReader();
+    if (assetPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(assetPreview);
+    }
 
-    reader.onload = () => {
-      setAssetPreview(String(reader.result));
-    };
-
-    reader.readAsDataURL(file);
-    event.target.value = "";
+    setAssetPreview(URL.createObjectURL(file));
   };
 
   const openAddAssetModal = () => {
+    if (assetPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(assetPreview);
+    }
+
     setEditingAsset(null);
     setAssetPreview("");
     setModal("asset");
   };
 
   const openEditAssetModal = (asset: ProfileAsset) => {
+    if (assetPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(assetPreview);
+    }
+
     setEditingAsset(asset);
     setAssetPreview(asset.image);
     setModal("asset");
   };
 
   const closeAssetModal = () => {
+    if (assetPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(assetPreview);
+    }
+
     setModal(null);
     setEditingAsset(null);
     setAssetPreview("");
   };
 
-  const handleAssetSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleAssetSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
-    const type = String(formData.get("type") ?? "field") as AssetType;
+    const rawType = String(formData.get("type") ?? "field");
+    const type: AssetType = rawType === "truck" ? "truck" : "field";
 
-    const title = String(formData.get("title") ?? "").trim();
+    const title = textFallback(formData.get("title"));
+    const description = textFallback(formData.get("description"));
+    const location = textFallback(formData.get("location"));
+    const detail = textFallback(formData.get("detail"));
+    const imageFile = formData.get("image");
 
-    const description = String(formData.get("description") ?? "").trim();
+    let uploadedImagePath = "";
 
-    const location = String(formData.get("location") ?? "").trim();
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    const detail = String(formData.get("detail") ?? "").trim();
+      if (userError) {
+        throw userError;
+      }
 
-    if (!title || !description || !location || !detail) {
-      window.alert("Seluruh informasi aset wajib diisi.");
-      return;
+      if (!user) {
+        throw new Error("Sesi pengguna tidak ditemukan.");
+      }
+
+      let imageUrl = editingAsset?.image ?? "";
+      let imagePath = editingAsset?.imagePath ?? "";
+
+      if (imageFile instanceof File && imageFile.size > 0) {
+        if (!imageFile.type.startsWith("image/")) {
+          throw new Error("Foto aset harus berupa file gambar.");
+        }
+
+        if (imageFile.size > 3 * 1024 * 1024) {
+          throw new Error("Ukuran foto aset maksimal 3 MB.");
+        }
+
+        const extension = getFileExtension(imageFile);
+
+        uploadedImagePath = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("asset-images")
+          .upload(uploadedImagePath, imageFile, {
+            cacheControl: "3600",
+            contentType: imageFile.type,
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("asset-images")
+          .getPublicUrl(uploadedImagePath);
+
+        imageUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+        imagePath = uploadedImagePath;
+      }
+
+      if (editingAsset) {
+        const oldImagePath = editingAsset.imagePath;
+
+        const { data, error } = await supabase
+          .from("profile_assets")
+          .update({
+            type,
+            title,
+            description,
+            location,
+            detail,
+            image_url: imageUrl,
+            image_path: imagePath,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editingAsset.id)
+          .eq("user_id", user.id)
+          .select(
+            [
+              "id",
+              "type",
+              "title",
+              "description",
+              "location",
+              "detail",
+              "image_url",
+              "image_path",
+            ].join(","),
+          )
+          .single();
+
+        if (error) {
+          if (uploadedImagePath) {
+            await supabase.storage
+              .from("asset-images")
+              .remove([uploadedImagePath]);
+          }
+
+          throw error;
+        }
+
+        if (oldImagePath && imagePath && oldImagePath !== imagePath) {
+          const { error: removeOldImageError } = await supabase.storage
+            .from("asset-images")
+            .remove([oldImagePath]);
+
+          if (removeOldImageError) {
+            console.error("Foto aset lama gagal dihapus:", removeOldImageError);
+          }
+        }
+
+        setAssets((currentAssets) =>
+          currentAssets.map((asset) =>
+            asset.id === editingAsset.id
+              ? {
+                  id: String(data.id),
+                  type: data.type === "truck" ? "truck" : "field",
+                  title: textFallback(data.title),
+                  description: textFallback(data.description),
+                  location: textFallback(data.location),
+                  detail: textFallback(data.detail),
+                  image: String(data.image_url ?? ""),
+                  imagePath: String(data.image_path ?? ""),
+                }
+              : asset,
+          ),
+        );
+      } else {
+        const { data, error } = await supabase
+          .from("profile_assets")
+          .insert({
+            user_id: user.id,
+            type,
+            title,
+            description,
+            location,
+            detail,
+            image_url: imageUrl,
+            image_path: imagePath,
+          })
+          .select(
+            [
+              "id",
+              "type",
+              "title",
+              "description",
+              "location",
+              "detail",
+              "image_url",
+              "image_path",
+            ].join(","),
+          )
+          .single();
+
+        if (error) {
+          if (uploadedImagePath) {
+            await supabase.storage
+              .from("asset-images")
+              .remove([uploadedImagePath]);
+          }
+
+          throw error;
+        }
+
+        setAssets((currentAssets) => [
+          ...currentAssets,
+          {
+            id: String(data.id),
+            type: data.type === "truck" ? "truck" : "field",
+            title: textFallback(data.title),
+            description: textFallback(data.description),
+            location: textFallback(data.location),
+            detail: textFallback(data.detail),
+            image: String(data.image_url ?? ""),
+            imagePath: String(data.image_path ?? ""),
+          },
+        ]);
+      }
+
+      closeAssetModal();
+    } catch (error) {
+      console.error("Aset gagal disimpan:", error);
+      window.alert(`Aset gagal disimpan. ${getErrorMessage(error)}`);
     }
-
-    const fallbackImage =
-      type === "field" ? defaultAssets[0].image : defaultAssets[1].image;
-
-    if (editingAsset) {
-      setAssets((currentAssets) =>
-        currentAssets.map((asset) =>
-          asset.id === editingAsset.id
-            ? {
-                ...asset,
-                type,
-                title,
-                description,
-                location,
-                detail,
-                image: assetPreview || editingAsset.image || fallbackImage,
-              }
-            : asset,
-        ),
-      );
-    } else {
-      const newAsset: ProfileAsset = {
-        id: `ASSET-${Date.now()}`,
-        type,
-        title,
-        description,
-        location,
-        detail,
-        image: assetPreview || fallbackImage,
-      };
-
-      setAssets((currentAssets) => [...currentAssets, newAsset]);
-    }
-
-    closeAssetModal();
   };
 
-  const handleRemoveAsset = (asset: ProfileAsset) => {
+  const handleRemoveAsset = async (asset: ProfileAsset) => {
     const confirmed = window.confirm(`Hapus aset "${asset.title}"?`);
 
     if (!confirmed) {
       return;
     }
 
-    setAssets((currentAssets) =>
-      currentAssets.filter((item) => item.id !== asset.id),
-    );
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error("Sesi pengguna tidak ditemukan.");
+      }
+
+      const { error: deleteError } = await supabase
+        .from("profile_assets")
+        .delete()
+        .eq("id", asset.id)
+        .eq("user_id", user.id);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      if (asset.imagePath) {
+        const { error: removeImageError } = await supabase.storage
+          .from("asset-images")
+          .remove([asset.imagePath]);
+
+        if (removeImageError) {
+          console.error(
+            "Foto aset gagal dihapus dari Storage:",
+            removeImageError,
+          );
+        }
+      }
+
+      setAssets((currentAssets) =>
+        currentAssets.filter((item) => item.id !== asset.id),
+      );
+    } catch (error) {
+      console.error("Aset gagal dihapus:", error);
+      window.alert(`Aset gagal dihapus. ${getErrorMessage(error)}`);
+    }
   };
 
-  const handleResetAssets = () => {
+  const handleResetAssets = async () => {
     const confirmed = window.confirm("Kembalikan aset ke data awal?");
 
     if (!confirmed) {
       return;
     }
 
-    setAssets(defaultAssets);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        throw userError;
+      }
+
+      if (!user) {
+        throw new Error("Sesi pengguna tidak ditemukan.");
+      }
+
+      const imagePaths = assets
+        .map((asset) => asset.imagePath)
+        .filter((path): path is string => Boolean(path));
+
+      const { error: deleteError } = await supabase
+        .from("profile_assets")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      if (imagePaths.length > 0) {
+        const { error: removeImagesError } = await supabase.storage
+          .from("asset-images")
+          .remove(imagePaths);
+
+        if (removeImagesError) {
+          console.error("Sebagian foto aset gagal dihapus:", removeImagesError);
+        }
+      }
+
+      setAssets([]);
+    } catch (error) {
+      console.error("Aset gagal direset:", error);
+      window.alert(`Aset gagal direset. ${getErrorMessage(error)}`);
+    }
   };
 
   const verifiedCount = documents.filter(
     (document) => document.status === "Verified",
   ).length;
+
+  const completionPercentage = Math.min(
+    100,
+    Math.max(0, profile.completionPercentage),
+  );
 
   return (
     <AppShell>
@@ -473,13 +1303,17 @@ export default function ProfilePage() {
               className="profile-photo profile-photo-editable"
               title={t("Edit foto profil")}
             >
-              {account.photo ? (
+              {profile.photo ? (
                 <img
-                  src={account.photo}
-                  alt={account.name || "Foto profil"}
+                  key={profile.photo}
+                  src={profile.photo}
+                  alt={`Foto profil ${profile.name}`}
+                  className="profile-photo-image"
                 />
               ) : (
-                getInitials(account.name || "Haji Supriatna")
+                <span className="profile-photo-initials">
+                  {getInitials(profile.name)}
+                </span>
               )}
 
               <span className="profile-photo-action">
@@ -495,8 +1329,9 @@ export default function ProfilePage() {
 
             <div className="profile-hero-copy">
               <div className="profile-title">
-                <h1>{account.name || "Pak Haji Supriatna"}</h1>
-                {account.verified && (
+                <h1>{profile.name}</h1>
+
+                {profile.verified && (
                   <i className="profile-verified">
                     <Verified aria-hidden="true" />
                     {t("Akun Terverifikasi - Gold")}
@@ -504,27 +1339,31 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              <h3>{account.role || "Petani Utama & Pengumpul"}</h3>
+              <h3>{profile.role}</h3>
 
               <p className="profile-meta">
                 <span>
                   <MapPin aria-hidden="true" />
-                  {account.location || "Garut, Jawa Barat"}
+                  {profile.location}
                 </span>
+
                 <span>
                   <Calendar aria-hidden="true" />
-                  {t("Member since Jan 2024")}
+                  {profile.memberSince === "-"
+                    ? "-"
+                    : `Member since ${formatMemberSince(profile.memberSince)}`}
                 </span>
               </p>
 
               <div className="profile-contact">
                 <span>
                   <Mail aria-hidden="true" />
-                  {account.email}
+                  {profile.email}
                 </span>
+
                 <span>
                   <Phone aria-hidden="true" />
-                  +{account.phone}
+                  {profile.phone === "0" ? "0" : `+${profile.phone}`}
                 </span>
               </div>
 
@@ -537,18 +1376,20 @@ export default function ProfilePage() {
 
           <aside className="profile-hero-stats">
             <b>
-              42
+              {profile.loadCount}
               <small>{t("Muatan")}</small>
             </b>
+
             <b>
-              98%
-              <small>{t("Kelengkapan")}</small>
+              {completionPercentage}%<small>{t("Kelengkapan")}</small>
             </b>
+
             <b className="profile-stat-rating">
               <span>
-                4.9
+                {profile.rating}
                 <Star aria-hidden="true" />
               </span>
+
               <small>{t("Rating")}</small>
             </b>
           </aside>
@@ -559,20 +1400,29 @@ export default function ProfilePage() {
             <section className="card profile-highlight">
               <div>
                 <small>{t("Profil Bisnis")}</small>
+
                 <strong>
                   {t("Siap menerima mitra logistik dan pembeli baru")}
                 </strong>
+
                 <p>
                   {t(
                     "Dokumen inti aktif, aset tersimpan, dan data kontak sudah siap untuk proses matching muatan.",
                   )}
                 </p>
               </div>
+
               <div className="profile-complete">
-                <strong>98%</strong>
-                <small>{t("98% lengkap")}</small>
+                <strong>{completionPercentage}%</strong>
+
+                <small>{completionPercentage}% lengkap</small>
+
                 <span className="profile-complete-bar" aria-hidden="true">
-                  <i style={{ width: "98%" }} />
+                  <i
+                    style={{
+                      width: `${completionPercentage}%`,
+                    }}
+                  />
                 </span>
               </div>
             </section>
@@ -580,19 +1430,21 @@ export default function ProfilePage() {
             <div className="profile-section-head">
               <div>
                 <h2>{t("Verifikasi Identitas & Dokumen Usaha")}</h2>
+
                 <p>
-                  {verifiedCount}/{documents.length} {t("dokumen terverifikasi")}
+                  {verifiedCount}/{documents.length}{" "}
+                  {t("dokumen terverifikasi")}
                 </p>
               </div>
             </div>
 
             {documents.map((document) => {
               const DocumentIcon =
-                document.id === "ktp"
+                document.documentType === "ktp"
                   ? IdCard
-                  : document.id === "sim"
+                  : document.documentType === "sim"
                     ? Car
-                    : document.id === "land"
+                    : document.documentType === "land"
                       ? LandPlot
                       : FileText;
 
@@ -664,7 +1516,10 @@ export default function ProfilePage() {
             <div className="profile-section-head">
               <div>
                 <h2>{t("Aset Pertanian & Logistik")}</h2>
-                <p>{t("Kelola lahan dan armada yang terhubung dengan akun.")}</p>
+
+                <p>
+                  {t("Kelola lahan dan armada yang terhubung dengan akun.")}
+                </p>
               </div>
 
               <div className="profile-asset-actions">
@@ -690,7 +1545,9 @@ export default function ProfilePage() {
                   <div
                     className={`asset-image ${asset.type}`}
                     style={{
-                      backgroundImage: `url("${asset.image}")`,
+                      backgroundImage: asset.image
+                        ? `url("${asset.image}")`
+                        : "none",
                     }}
                     role="img"
                     aria-label={asset.title}
@@ -796,20 +1653,27 @@ export default function ProfilePage() {
             <form className="form" onSubmit={handleProfileSubmit}>
               <label>
                 Nama Lengkap
-                <input name="name" defaultValue={account.name} required />
+                <input
+                  name="name"
+                  defaultValue={profile.name === "-" ? "" : profile.name}
+                />
               </label>
 
               <label>
                 Peran atau Jenis Usaha
-                <input name="role" defaultValue={account.role} required />
+                <input
+                  name="role"
+                  defaultValue={profile.role === "-" ? "" : profile.role}
+                />
               </label>
 
               <label>
                 Lokasi
                 <input
                   name="location"
-                  defaultValue={account.location}
-                  required
+                  defaultValue={
+                    profile.location === "-" ? "" : profile.location
+                  }
                 />
               </label>
 
@@ -818,8 +1682,7 @@ export default function ProfilePage() {
                 <input
                   name="email"
                   type="email"
-                  defaultValue={account.email}
-                  required
+                  defaultValue={profile.email === "-" ? "" : profile.email}
                 />
               </label>
 
@@ -828,8 +1691,7 @@ export default function ProfilePage() {
                 <input
                   name="phone"
                   inputMode="numeric"
-                  defaultValue={account.phone}
-                  required
+                  defaultValue={profile.phone === "0" ? "" : profile.phone}
                 />
               </label>
 
@@ -856,7 +1718,6 @@ export default function ProfilePage() {
                   required
                 >
                   <option value="field">Lahan Pertanian</option>
-
                   <option value="truck">Armada Logistik</option>
                 </select>
               </label>
@@ -865,9 +1726,12 @@ export default function ProfilePage() {
                 Title atau Nama Aset
                 <input
                   name="title"
-                  defaultValue={editingAsset?.title ?? ""}
+                  defaultValue={
+                    editingAsset?.title === "-"
+                      ? ""
+                      : (editingAsset?.title ?? "")
+                  }
                   placeholder="Contoh: Lahan Cabai Merah"
-                  required
                 />
               </label>
 
@@ -876,9 +1740,12 @@ export default function ProfilePage() {
                 <textarea
                   name="description"
                   rows={3}
-                  defaultValue={editingAsset?.description ?? ""}
+                  defaultValue={
+                    editingAsset?.description === "-"
+                      ? ""
+                      : (editingAsset?.description ?? "")
+                  }
                   placeholder="Jelaskan fungsi atau kondisi aset"
-                  required
                 />
               </label>
 
@@ -887,9 +1754,12 @@ export default function ProfilePage() {
                   Lokasi
                   <input
                     name="location"
-                    defaultValue={editingAsset?.location ?? ""}
+                    defaultValue={
+                      editingAsset?.location === "-"
+                        ? ""
+                        : (editingAsset?.location ?? "")
+                    }
                     placeholder="Contoh: Garut"
-                    required
                   />
                 </label>
 
@@ -897,9 +1767,12 @@ export default function ProfilePage() {
                   Luas, Kapasitas, atau Nomor Polisi
                   <input
                     name="detail"
-                    defaultValue={editingAsset?.detail ?? ""}
+                    defaultValue={
+                      editingAsset?.detail === "-"
+                        ? ""
+                        : (editingAsset?.detail ?? "")
+                    }
                     placeholder="2.5 Hektar atau Z 8201 AB"
-                    required
                   />
                 </label>
               </div>
@@ -907,6 +1780,7 @@ export default function ProfilePage() {
               <label>
                 Foto
                 <input
+                  name="image"
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   onChange={handleAssetImage}

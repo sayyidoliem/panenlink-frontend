@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { useAuthTranslation } from "@/components/auth/useAuthTranslation";
+import { createClient } from "@/shared/lib/supabase/client";
 
 function GoogleIcon() {
   return (
@@ -27,7 +31,71 @@ function GoogleIcon() {
   );
 }
 
+function getSupabaseErrorMessage(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof error.message === "string"
+        ? error.message.toLowerCase()
+        : "";
+
+  const status =
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+      ? error.status
+      : 0;
+
+  if (message.includes("invalid login credentials")) {
+    return "Email atau kata sandi salah.";
+  }
+
+  if (
+    message.includes("email not confirmed") ||
+    message.includes("email_not_confirmed")
+  ) {
+    return "Email belum dikonfirmasi. Silakan periksa kotak masuk Anda.";
+  }
+
+  if (message.includes("invalid email")) {
+    return "Format email tidak valid.";
+  }
+
+  if (
+    status === 429 ||
+    message.includes("rate limit") ||
+    message.includes("too many requests")
+  ) {
+    return "Terlalu banyak percobaan login. Silakan coba kembali nanti.";
+  }
+
+  if (
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("fetch")
+  ) {
+    return "Koneksi internet bermasalah. Silakan coba kembali.";
+  }
+
+  if (message.includes("provider is not enabled")) {
+    return "Metode login Google belum diaktifkan di Supabase.";
+  }
+
+  if (message.includes("cancelled") || message.includes("canceled")) {
+    return "Proses masuk dengan Google dibatalkan.";
+  }
+
+  return "Login gagal. Silakan periksa data Anda dan coba kembali.";
+}
+
 export default function Page() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
   const t = useAuthTranslation([
     "Welcome Back",
     "Masuk ke hub logistik agrikultur Anda.",
@@ -43,36 +111,193 @@ export default function Page() {
     "Daftar Sekarang",
   ]);
 
+  const handleEmailLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (loading) return;
+
+    const formData = new FormData(event.currentTarget);
+
+    const email = String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase();
+
+    const password = String(formData.get("password") ?? "");
+
+    if (!email || !password) {
+      window.alert("Email dan kata sandi wajib diisi.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (error) {
+      window.alert(getSupabaseErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (loading) return;
+
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      const redirectTo =
+        `${window.location.origin}` + "/auth/callback?next=/dashboard";
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      window.alert(getSupabaseErrorMessage(error));
+
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (loading) return;
+
+    const emailInput = document.querySelector<HTMLInputElement>(
+      'input[name="email"]',
+    );
+
+    const email = emailInput?.value.trim().toLowerCase() ?? "";
+
+    if (!email) {
+      window.alert(
+        "Masukkan email Anda terlebih dahulu, kemudian pilih Lupa Kata Sandi.",
+      );
+
+      emailInput?.focus();
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      const redirectTo =
+        `${window.location.origin}` + "/auth/callback?next=/update-password";
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      window.alert(
+        "Tautan pengaturan ulang kata sandi telah dikirim ke email Anda.",
+      );
+    } catch (error) {
+      window.alert(getSupabaseErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthLayout mode="login">
       <header>
         <h1>{t("Welcome Back")}</h1>
         <p>{t("Masuk ke hub logistik agrikultur Anda.")}</p>
       </header>
-      <form className="form">
-        <button type="button" className="google">
+
+      <form className="form" onSubmit={handleEmailLogin}>
+        <button
+          type="button"
+          className="google"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+        >
           <GoogleIcon />
           <span>{t("Lanjutkan dengan Google")}</span>
         </button>
+
         <div className="divider">{t("ATAU")}</div>
+
         <label>
           {t("Email atau Nomor HP")}
-          <input placeholder={t("Masukkan email atau no HP")} />
+          <input
+            name="email"
+            type="email"
+            autoComplete="email"
+            placeholder={t("Masukkan email atau no HP")}
+            disabled={loading}
+            required
+          />
         </label>
+
         <label>
           {t("Kata Sandi")}
-          <input type="password" placeholder="••••••••" />
+          <input
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="••••••••"
+            disabled={loading}
+            required
+          />
         </label>
+
         <div className="row">
           <label className="check">
-            <input type="checkbox" /> <span>{t("Ingat Saya")}</span>
+            <input name="remember" type="checkbox" disabled={loading} />
+            <span>{t("Ingat Saya")}</span>
           </label>
-          <a>{t("Lupa Kata Sandi?")}</a>
+
+          <a
+            role="button"
+            tabIndex={0}
+            onClick={handleForgotPassword}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                void handleForgotPassword();
+              }
+            }}
+          >
+            {t("Lupa Kata Sandi?")}
+          </a>
         </div>
-        <Link className="button secondary full" href="/dashboard">
+
+        <button
+          className="button secondary full"
+          type="submit"
+          disabled={loading}
+        >
           {t("Masuk Sekarang")}
-        </Link>
+        </button>
       </form>
+
       <p className="auth-switch">
         {t("Belum punya akun?")}{" "}
         <Link href="/register">{t("Daftar Sekarang")}</Link>

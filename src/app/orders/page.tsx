@@ -1,13 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Clock,
-  Download,
-  FileText,
-  Package,
-  Phone,
-} from "lucide-react";
+import { Clock, Download, FileText, Package, Phone } from "lucide-react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -70,14 +64,11 @@ export default function Page() {
         : step >= 1
           ? "Dalam Perjalanan"
           : "Muatan Diambil",
-    date: new Date().toLocaleDateString(
-      "id-ID",
-      {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      },
-    ),
+    date: new Date().toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }),
   };
 
   return (
@@ -96,9 +87,7 @@ export default function Page() {
           ].map(([value, label]) => (
             <button
               type="button"
-              className={
-                tab === value ? "active" : ""
-              }
+              className={tab === value ? "active" : ""}
               onClick={() => setTab(value)}
               key={value}
             >
@@ -112,9 +101,7 @@ export default function Page() {
             <div>
               <header>
                 <span>
-                  <h2>
-                    Cabai Merah Keriting 5.0 Ton
-                  </h2>
+                  <h2>Cabai Merah Keriting 5.0 Ton</h2>
                   <p>#LOAD-2026-0821</p>
                 </span>
 
@@ -134,11 +121,7 @@ export default function Page() {
                   <li
                     key={status}
                     className={
-                      index < step
-                        ? "done"
-                        : index === step
-                          ? "active"
-                          : ""
+                      index < step ? "done" : index === step ? "active" : ""
                     }
                   >
                     {status}
@@ -147,9 +130,7 @@ export default function Page() {
               </ol>
 
               <footer>
-                <span className="avatar lg">
-                  PA
-                </span>
+                <span className="avatar lg">PA</span>
 
                 <div>
                   <b>Pak Agus</b>
@@ -164,11 +145,7 @@ export default function Page() {
                 <button
                   type="button"
                   className="button primary"
-                  onClick={() =>
-                    downloadSuratJalanPdf(
-                      activeShipment,
-                    )
-                  }
+                  onClick={() => downloadSuratJalanPdf(activeShipment)}
                 >
                   <FileText />
                   Surat Jalan
@@ -177,11 +154,7 @@ export default function Page() {
                 <button
                   type="button"
                   className="button secondary"
-                  onClick={() =>
-                    setStep(
-                      Math.min(3, step + 1),
-                    )
-                  }
+                  onClick={() => setStep(Math.min(3, step + 1))}
                 >
                   Perbarui Status
                 </button>
@@ -193,9 +166,7 @@ export default function Page() {
         ) : (
           <div className="empty-load">
             <h2>
-              {tab === "done"
-                ? "Pengiriman selesai"
-                : "Tidak ada pembatalan"}
+              {tab === "done" ? "Pengiriman selesai" : "Tidak ada pembatalan"}
             </h2>
           </div>
         )}
@@ -203,32 +174,22 @@ export default function Page() {
         <h2>Riwayat Pengiriman</h2>
 
         {shipmentHistory.map((shipment) => (
-          <article
-            className="history"
-            key={shipment.loadId}
-          >
+          <article className="history" key={shipment.loadId}>
             <Package />
 
             <div>
               <b>
-                {shipment.commodity}{" "}
-                {shipment.weight}
+                {shipment.commodity} {shipment.weight}
               </b>
 
               <small>
-                {shipment.origin} →{" "}
-                {shipment.destination}
+                {shipment.origin} → {shipment.destination}
               </small>
             </div>
 
             <i>Selesai/Lunas</i>
 
-            <button
-              type="button"
-              onClick={() =>
-                downloadPodPdf(shipment)
-              }
-            >
+            <button type="button" onClick={() => downloadPodPdf(shipment)}>
               <Download />
               POD
             </button>

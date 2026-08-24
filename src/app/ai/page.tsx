@@ -109,7 +109,9 @@ export default function Page() {
             <Sparkles />
             <div>
               <strong>{t("Generate laporan")}</strong>
-              <p>{t("Unduh ringkasan percakapan AI menjadi PDF operasional.")}</p>
+              <p>
+                {t("Unduh ringkasan percakapan AI menjadi PDF operasional.")}
+              </p>
             </div>
           </article>
           <article>
@@ -128,7 +130,8 @@ export default function Page() {
           {m.map((x, i) => (
             <div key={i} className={`bubble ${x.from}`}>
               {x.from === "bot" &&
-              x.text === "Halo, saya Asisten PanenLink. Apa yang dapat saya bantu?"
+              x.text ===
+                "Halo, saya Asisten PanenLink. Apa yang dapat saya bantu?"
                 ? t("Halo, saya Asisten PanenLink. Apa yang dapat saya bantu?")
                 : x.text}
             </div>

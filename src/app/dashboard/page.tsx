@@ -56,8 +56,18 @@ function PanenLinkGlyph() {
           className="panenlink-mascot-route"
           d="M24 160 C58 122 82 151 107 119 C134 84 158 110 206 58"
         />
-        <circle className="panenlink-mascot-route-dot one" cx="30" cy="154" r="6" />
-        <circle className="panenlink-mascot-route-dot two" cx="206" cy="58" r="6" />
+        <circle
+          className="panenlink-mascot-route-dot one"
+          cx="30"
+          cy="154"
+          r="6"
+        />
+        <circle
+          className="panenlink-mascot-route-dot two"
+          cx="206"
+          cy="58"
+          r="6"
+        />
         <g className="panenlink-mascot-sparkle one">
           <path d="M52 52 L58 66 L72 72 L58 78 L52 92 L46 78 L32 72 L46 66 Z" />
         </g>
@@ -74,11 +84,26 @@ function PanenLinkGlyph() {
           <circle cx="181" cy="182" r="5" />
           <circle cx="207" cy="182" r="5" />
         </g>
-        <ellipse className="panenlink-mascot-shadow" cx="112" cy="202" rx="64" ry="12" />
-        <path className="panenlink-mascot-tail" d="M153 111 C184 100 204 117 200 142 C181 130 166 137 154 156 Z" />
+        <ellipse
+          className="panenlink-mascot-shadow"
+          cx="112"
+          cy="202"
+          rx="64"
+          ry="12"
+        />
+        <path
+          className="panenlink-mascot-tail"
+          d="M153 111 C184 100 204 117 200 142 C181 130 166 137 154 156 Z"
+        />
         <g className="panenlink-mascot-body">
-          <path className="panenlink-mascot-leg left" d="M76 177 C66 184 67 197 82 198 C95 198 100 189 96 180 Z" />
-          <path className="panenlink-mascot-leg right" d="M130 180 C126 190 132 199 145 198 C160 196 161 184 150 177 Z" />
+          <path
+            className="panenlink-mascot-leg left"
+            d="M76 177 C66 184 67 197 82 198 C95 198 100 189 96 180 Z"
+          />
+          <path
+            className="panenlink-mascot-leg right"
+            d="M130 180 C126 190 132 199 145 198 C160 196 161 184 150 177 Z"
+          />
           <path
             className="panenlink-mascot-shape"
             d="M111 37 C146 34 177 55 187 89 C200 133 180 179 145 194 C112 209 67 198 49 167 C31 136 39 86 61 59 C74 43 91 38 111 37 Z"
@@ -87,8 +112,14 @@ function PanenLinkGlyph() {
             className="panenlink-mascot-belly"
             d="M70 124 C70 96 88 79 113 79 C139 80 157 99 157 127 C157 161 139 181 113 181 C88 181 70 160 70 124 Z"
           />
-          <path className="panenlink-mascot-scarf" d="M72 116 C93 128 127 130 155 117 C149 128 141 136 129 141 C119 135 102 134 91 141 C81 136 75 128 72 116 Z" />
-          <path className="panenlink-mascot-scarf-tail" d="M139 134 C153 139 163 150 166 163 C151 163 138 153 129 141 Z" />
+          <path
+            className="panenlink-mascot-scarf"
+            d="M72 116 C93 128 127 130 155 117 C149 128 141 136 129 141 C119 135 102 134 91 141 C81 136 75 128 72 116 Z"
+          />
+          <path
+            className="panenlink-mascot-scarf-tail"
+            d="M139 134 C153 139 163 150 166 163 C151 163 138 153 129 141 Z"
+          />
           <path
             className="panenlink-mascot-arm left"
             d="M59 118 C41 122 35 139 47 149 C61 143 67 130 68 120 Z"
@@ -116,14 +147,48 @@ function PanenLinkGlyph() {
             d="M120 38 C132 16 160 20 166 42 C144 54 128 51 120 38 Z"
           />
           <circle className="panenlink-mascot-eye left" cx="91" cy="89" r="8" />
-          <circle className="panenlink-mascot-eye right" cx="130" cy="89" r="8" />
-          <circle className="panenlink-mascot-eye-light left" cx="88" cy="86" r="2.5" />
-          <circle className="panenlink-mascot-eye-light right" cx="127" cy="86" r="2.5" />
-          <circle className="panenlink-mascot-cheek left" cx="75" cy="108" r="8" />
-          <circle className="panenlink-mascot-cheek right" cx="147" cy="108" r="8" />
-          <path className="panenlink-mascot-smile" d="M94 106 C102 119 122 119 131 106" />
-          <path className="panenlink-mascot-mouth-glow" d="M101 116 C108 121 118 121 125 116" />
-          <path className="panenlink-mascot-highlight" d="M76 58 C91 48 112 44 132 51" />
+          <circle
+            className="panenlink-mascot-eye right"
+            cx="130"
+            cy="89"
+            r="8"
+          />
+          <circle
+            className="panenlink-mascot-eye-light left"
+            cx="88"
+            cy="86"
+            r="2.5"
+          />
+          <circle
+            className="panenlink-mascot-eye-light right"
+            cx="127"
+            cy="86"
+            r="2.5"
+          />
+          <circle
+            className="panenlink-mascot-cheek left"
+            cx="75"
+            cy="108"
+            r="8"
+          />
+          <circle
+            className="panenlink-mascot-cheek right"
+            cx="147"
+            cy="108"
+            r="8"
+          />
+          <path
+            className="panenlink-mascot-smile"
+            d="M94 106 C102 119 122 119 131 106"
+          />
+          <path
+            className="panenlink-mascot-mouth-glow"
+            d="M101 116 C108 121 118 121 125 116"
+          />
+          <path
+            className="panenlink-mascot-highlight"
+            d="M76 58 C91 48 112 44 132 51"
+          />
         </g>
       </svg>
     </div>
@@ -246,7 +311,9 @@ export default function Page() {
               <Sparkles />
               {t("Operasi PanenLink Hari Ini")}
             </span>
-            <h2>{t("Distribusi Anda sedang bergerak dengan ritme yang bagus.")}</h2>
+            <h2>
+              {t("Distribusi Anda sedang bergerak dengan ritme yang bagus.")}
+            </h2>
             <p>
               {t(
                 "Dua armada aktif sedang berjalan, satu pengiriman siap muat, dan pusat notifikasi sudah sinkron dengan aktivitas dashboard.",
@@ -352,7 +419,11 @@ export default function Page() {
               <div className="section-head">
                 <div>
                   <h2>{t("Muatan Aktif")}</h2>
-                  <p>{t("Rute utama yang sedang menghasilkan pemasukan hari ini.")}</p>
+                  <p>
+                    {t(
+                      "Rute utama yang sedang menghasilkan pemasukan hari ini.",
+                    )}
+                  </p>
                 </div>
                 <ChartNoAxesCombined />
               </div>

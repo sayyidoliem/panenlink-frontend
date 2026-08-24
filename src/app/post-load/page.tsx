@@ -29,7 +29,7 @@ export default function Page() {
     <AppShell>
       <div className="page">
         <Link href="/dashboard" className="back">
-           Kembali
+          Kembali
         </Link>
         <PageHeader
           title="Pasang Muatan Baru"
