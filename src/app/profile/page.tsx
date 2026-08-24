@@ -1329,25 +1329,33 @@ export default function ProfilePage() {
         <section className="card profile-hero">
           <div className="profile-hero-main">
             <label
-              className="profile-photo profile-photo-editable"
-              title={t("Edit foto profil")}
-            >
-              {profile.photo ? (
-                profile.photo
-              ) : (
-                getInitials(profile.name)
-              )}
+  className="profile-photo profile-photo-editable"
+  title={t("Edit foto profil")}
+>
+  {profile.photo ? (
+    <img
+      key={profile.photo}
+      src={profile.photo}
+      alt={`Foto profil ${profile.name}`}
+      className="profile-photo-image"
+    />
+  ) : (
+    <span className="profile-photo-initials">
+      {getInitials(profile.name)}
+    </span>
+  )}
 
-              <span className="profile-photo-action">
-                <Camera aria-hidden="true" />
-              </span>
+  <span className="profile-photo-action">
+    <Camera aria-hidden="true" />
+  </span>
 
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={handleProfilePhoto}
-              />
-            </label>
+  <input
+    type="file"
+    accept="image/png,image/jpeg,image/webp"
+    onChange={handleProfilePhoto}
+  />
+</label>
+
 
             <div className="profile-hero-copy">
               <div className="profile-title">
