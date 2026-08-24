@@ -12,6 +12,10 @@ type ShipmentDocumentData = {
   status: string;
   date: string;
 };
+type AiReportEntry = {
+  from: "user" | "bot";
+  text: string;
+};
 
 const COLORS = {
   primary: [33, 70, 22] as const,
@@ -464,4 +468,65 @@ export function downloadPodPdf(
   pdf.save(
     `POD-${sanitizeFileName(data.loadId)}.pdf`,
   );
+}
+
+export function downloadAiConversationPdf(
+  title: string,
+  entries: AiReportEntry[],
+) {
+  const pdf = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
+
+  drawDocumentHeader(
+    pdf,
+    "LAPORAN ASISTEN AI",
+    `Nomor: AI-${Date.now()}`,
+  );
+
+  let y = 45;
+
+  y = drawSectionTitle(pdf, title.toUpperCase(), y);
+
+  entries.forEach((entry, index) => {
+    if (y > 250) {
+      drawFooter(pdf);
+      pdf.addPage();
+      drawDocumentHeader(
+        pdf,
+        "LAPORAN ASISTEN AI",
+        `Halaman ${pdf.getNumberOfPages()}`,
+      );
+      y = 45;
+    }
+
+    const role = entry.from === "user" ? "Pengguna" : "Asisten PanenLink";
+    const text = pdf.splitTextToSize(entry.text || "-", 168);
+    const height = Math.max(20, text.length * 5 + 10);
+    const fillColor =
+      entry.from === "user" ? COLORS.low : COLORS.primaryContainer;
+    const textColor =
+      entry.from === "user" ? COLORS.text : COLORS.white;
+    const [fillR, fillG, fillB] = fillColor;
+    const [textR, textG, textB] = textColor;
+
+    pdf.setFillColor(fillR, fillG, fillB);
+    pdf.roundedRect(16, y, 178, height, 3, 3, "F");
+
+    pdf.setTextColor(textR, textG, textB);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(`${index + 1}. ${role}`, 20, y + 7);
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.text(text, 20, y + 14);
+
+    y += height + 8;
+  });
+
+  drawFooter(pdf);
+  pdf.save(`Laporan-AI-${sanitizeFileName(title)}.pdf`);
 }
