@@ -30,6 +30,31 @@ const all = [
     destination: "Tangerang",
     price: 1850000,
   },
+  {
+    id: "LOAD-2026-0794",
+    name: "Kentang Granola",
+    kg: 4500,
+    origin: "Dieng",
+    destination: "Bekasi",
+    price: 3200000,
+  },
+  {
+    id: "LOAD-2026-0788",
+    name: "Jagung Manis",
+    kg: 6000,
+    origin: "Jember",
+    destination: "Surabaya",
+    price: 2750000,
+  },
+  {
+    id: "LOAD-2026-0772",
+    name: "Pisang Cavendish",
+    kg: 3800,
+    origin: "Lumajang",
+    destination: "Jakarta",
+    price: 2400000,
+    urgent: true,
+  },
 ];
 export default function Page() {
   const [q, setQ] = useState(""),

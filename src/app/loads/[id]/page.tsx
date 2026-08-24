@@ -6,7 +6,7 @@ export default function Page() {
     <AppShell>
       <div className="page">
         <Link href="/loads" className="back">
-          ← Kembali ke Cari Muatan
+           Kembali ke Cari Muatan
         </Link>
         <div className="page-header">
           <div>
