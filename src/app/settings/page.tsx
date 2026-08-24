@@ -16,9 +16,12 @@ import {
 } from "lucide-react";
 import { useApp, type Theme, type Lang } from "@/shared/app/AppProvider";
 import { useUiTranslation } from "@/shared/app/useUiTranslation";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/shared/lib/supabase/client";
 import { Modal } from "@/components/ui/Modal";
 export default function Page() {
+  const router = useRouter();
   const a = useApp(),
     [modal, setModal] = useState<"bank" | "password" | "pin" | null>(null),
     [banks, setBanks] = useState([
@@ -64,6 +67,58 @@ export default function Page() {
     "Nilai baru",
     "Simpan",
   ]);
+
+  const logoutDialogRef = useRef<HTMLDialogElement | null>(null);
+  const logoutCancelButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const openLogoutDialog = () => {
+    const dialog = logoutDialogRef.current;
+
+    if (!dialog || dialog.open) {
+      return;
+    }
+
+    dialog.showModal();
+
+    requestAnimationFrame(() => {
+      logoutCancelButtonRef.current?.focus();
+    });
+  };
+
+  const closeLogoutDialog = () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    logoutDialogRef.current?.close();
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        throw error;
+      }
+
+      logoutDialogRef.current?.close();
+
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Gagal keluar dari akun:", error);
+      setIsLoggingOut(false);
+    }
+  };
+
   return (
     <AppShell>
       <div className="page">
@@ -168,7 +223,7 @@ export default function Page() {
               <p>
                 <Monitor />
                 Chrome / Windows{" "}
-                <button onClick={() => alert("Sesi dikeluarkan")}>
+                <button type="button" onClick={openLogoutDialog}>
                   {t("Keluar")}
                 </button>
               </p>
@@ -303,6 +358,65 @@ export default function Page() {
             </form>
           </Modal>
         )}
+        <dialog
+          ref={logoutDialogRef}
+          className="logout-dialog"
+          aria-labelledby="settings-logout-dialog-title"
+          aria-describedby="settings-logout-dialog-description"
+          onClose={() => setIsLoggingOut(false)}
+          onCancel={(event) => {
+            if (isLoggingOut) {
+              event.preventDefault();
+            }
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeLogoutDialog();
+            }
+          }}
+        >
+          <div
+            className="logout-dialog-content"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="settings-logout-dialog-title">
+              {a.lang === "en" ? "Sign out?" : "Keluar dari akun?"}
+            </h2>
+
+            <p id="settings-logout-dialog-description">
+              {a.lang === "en"
+                ? "Are you sure you want to sign out of your PanenLink account?"
+                : "Apakah Anda yakin ingin keluar dari akun PanenLink?"}
+            </p>
+
+            <div className="logout-dialog-actions">
+              <button
+                ref={logoutCancelButtonRef}
+                type="button"
+                className="logout-dialog-cancel"
+                onClick={closeLogoutDialog}
+                disabled={isLoggingOut}
+              >
+                {a.lang === "en" ? "Cancel" : "Batal"}
+              </button>
+
+              <button
+                type="button"
+                className="logout-dialog-confirm"
+                onClick={() => void handleLogout()}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut
+                  ? a.lang === "en"
+                    ? "Signing out..."
+                    : "Sedang keluar..."
+                  : a.lang === "en"
+                    ? "Sign out"
+                    : "Keluar"}
+              </button>
+            </div>
+          </div>
+        </dialog>
       </div>
     </AppShell>
   );
