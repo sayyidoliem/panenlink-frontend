@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Route, Clock, Truck, Info, Lock, MessageCircle } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useEffect, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { useApp } from "@/shared/app/AppProvider";
@@ -184,7 +184,7 @@ export default function Page() {
     id: string;
   }>();
 
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const { account, pushAlert } = useApp();
 
@@ -438,11 +438,9 @@ export default function Page() {
       `Halo ${load.owner.name}, saya ingin membahas muatan ${load.commodity} dengan ID ${load.publicCode}.`,
     );
 
-    window.open(
-      `https://wa.me/${load.owner.phone}?text=${message}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    const whatsappUrl = `https://wa.me/${load.owner.phone}?text=${message}`;
+
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
   if (loading) {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Truck } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -110,7 +110,7 @@ function normalizeNullableNumber(value: FormDataEntryValue | null) {
 
 export default function Page() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const { pushAlert } = useApp();
 
@@ -164,10 +164,14 @@ export default function Page() {
 
       const notes = normalizeNullableText(formData.get("notes"));
 
-      const requirements = formData
-        .getAll("special")
-        .map((item) => String(item).trim())
-        .filter(Boolean);
+      const requirements = Array.from(
+        new Set(
+          formData
+            .getAll("special")
+            .map((item) => String(item).trim())
+            .filter(Boolean),
+        ),
+      );
 
       if (!commodity) {
         throw new Error("Komoditas wajib dipilih.");

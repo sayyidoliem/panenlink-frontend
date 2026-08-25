@@ -6,10 +6,23 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { RouteMap } from "@/components/maps/RouteMap";
-import { panenlinkApi, type MatchResult } from "@/shared/lib/panenLinkApi";
+import { createClient } from "@/shared/lib/supabase/client";
+
+type DatabaseLoadRow = {
+  id: unknown;
+  public_code: unknown;
+  commodity: unknown;
+  weight_kg: unknown;
+  origin: unknown;
+  destination: unknown;
+  budget: unknown;
+  is_urgent: unknown;
+  status: unknown;
+};
 
 type LoadRow = {
   id: string;
+  publicCode: string;
   name: string;
   kg: number;
   origin: string;
@@ -18,23 +31,38 @@ type LoadRow = {
   urgent?: boolean;
 };
 
-// Backend belum menyediakan nama lokasi dari node_id.
-// Karena itu, UI menampilkan node yang benar-benar diberikan backend.
-function toLoadRow(match: MatchResult): LoadRow {
+function textFallback(value: unknown, fallback: string) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const result = value.trim();
+
+  return result || fallback;
+}
+
+function numberFallback(value: unknown) {
+  const result = Number(value);
+
+  return Number.isFinite(result) ? result : 0;
+}
+
+function toLoadRow(load: DatabaseLoadRow): LoadRow {
   return {
-    id: match.harvest_id,
-    name: match.commodity,
-    kg: match.volume_kg,
-    origin: `Node ${match.node_id}`,
-    destination: match.truck_id
-      ? `Truck ${match.truck_id}`
-      : "Belum ditugaskan",
-    price: match.estimated_revenue_idr ?? 0,
-    urgent: match.status === "UNMATCHED",
+    id: String(load.id),
+    publicCode: textFallback(load.public_code, String(load.id)),
+    name: textFallback(load.commodity, "-"),
+    kg: numberFallback(load.weight_kg),
+    origin: textFallback(load.origin, "Lokasi belum ditentukan"),
+    destination: textFallback(load.destination, "Belum ditugaskan"),
+    price: numberFallback(load.budget),
+    urgent: Boolean(load.is_urgent),
   };
 }
 
 export default function Page() {
+  const supabase = useMemo(() => createClient(), []);
+
   const [rowsFromApi, setRowsFromApi] = useState<LoadRow[] | null>(null);
   const [selected, setSelected] = useState<LoadRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,17 +75,51 @@ export default function Page() {
     let cancelled = false;
 
     async function loadData() {
+      setLoading(true);
+
       try {
-        const data = await panenlinkApi.getLoads();
+        const { data, error } = await supabase
+          .from("loads")
+          .select(
+            `
+              id,
+              public_code,
+              commodity,
+              weight_kg,
+              origin,
+              destination,
+              budget,
+              is_urgent,
+              status
+            `,
+          )
+          .eq("status", "open")
+          .order("pickup_date", {
+            ascending: true,
+            nullsFirst: false,
+          });
+
+        if (error) {
+          throw error;
+        }
 
         if (cancelled) {
           return;
         }
 
-        const mappedRows = data.map(toLoadRow);
+        const mappedRows: LoadRow[] = (data ?? []).map((row: DatabaseLoadRow) =>
+          toLoadRow(row as DatabaseLoadRow),
+        );
 
         setRowsFromApi(mappedRows);
-        setSelected((current) => current ?? mappedRows[0] ?? null);
+
+        setSelected((current) => {
+          if (current && mappedRows.some((load) => load.id === current.id)) {
+            return current;
+          }
+
+          return mappedRows[0] ?? null;
+        });
       } catch (error) {
         console.error("Gagal mengambil data muatan:", error);
 
@@ -77,7 +139,7 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [supabase]);
 
   const all = rowsFromApi ?? [];
 
@@ -92,13 +154,28 @@ export default function Page() {
       const matchesWeight = load.kg <= max;
 
       const searchableText =
-        `${load.name} ${load.origin} ${load.destination} ${load.id}`.toLowerCase();
+        `${load.name} ${load.origin} ${load.destination} ${load.publicCode}`.toLowerCase();
 
       const matchesSearch = searchableText.includes(normalizedQuery);
 
       return matchesCommodity && matchesWeight && matchesSearch;
     });
   }, [all, q, commodity, max]);
+
+  useEffect(() => {
+    if (rows.length === 0) {
+      setSelected(null);
+      return;
+    }
+
+    setSelected((current) => {
+      if (current && rows.some((row) => row.id === current.id)) {
+        return current;
+      }
+
+      return rows[0];
+    });
+  }, [rows]);
 
   function resetFilters() {
     setQ("");
@@ -202,27 +279,9 @@ export default function Page() {
                     ? `Rp ${load.price.toLocaleString("id-ID")}`
                     : "Anggaran terbuka"}
                 </strong>
-
-                <Link href={`/loads/${load.id}`} className="button link">
-                  Lihat Detail
-                </Link>
               </footer>
             </article>
           ))}
-        </section>
-
-        <section className="map">
-          {selected && <RouteMap initial={selected.origin} />}
-
-          {selected && (
-            <div className="map-tip">
-              <b>{selected.name}</b>
-
-              <small>
-                {selected.origin} → {selected.destination}
-              </small>
-            </div>
-          )}
         </section>
       </div>
     </AppShell>
