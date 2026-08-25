@@ -1,4 +1,30 @@
-.next
-node_modules
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Locks / temporary
+.locks/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
 *.tsbuildinfo
-.env*
+
+# Model caches
+models/cache/
+
+# Training checkpoints
+models/checkpoints/
+
+# Model weights
+model-weights/
+models/*.gguf
+
+# OS
+.DS_Store
+Thumbs.db
