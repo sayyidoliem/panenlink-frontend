@@ -25,17 +25,37 @@ for d in [current_dir, llm_service_dir]:
 
 from hf_extractor import extract_farmer_message
 
+# Auto-load .env.local and .env files if present
+for env_file in [".env.local", ".env"]:
+    env_path = os.path.join(current_dir, env_file)
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k, v = k.strip(), v.strip().strip("\"'")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+        except Exception as e:
+            print(f"[WARN] Could not read {env_file}: {e}")
+
 # ---------------------------------------------------------------------------
 # Configuration & Credentials (via Environment Variables with Fallbacks)
 # ---------------------------------------------------------------------------
 VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "PANENLINK_SECRET_TOKEN_123")
-WHATSAPP_TOKEN = os.environ.get(
-    "WHATSAPP_TOKEN",
-    "EAAj7uxk4gcUBSQJhbYW2PbWakdsxkL93OfdhZC22jmsMZCLX50kpjAxY8ZCbWf9r3g5FBBTtJ5fUdvD5JYgCJoVVLZA4VfNKnyVBAcdvLpcZCvL7QBZCcpn2ZACfoytsU3OqdYs11oRpEYX8LHEfhzXgVFKZCk3VQdN3cZC925rRCrcBVEpPlZBhhF6jMaruPl82NGyovPyxljG5ibVv103KiGA0dAFNJCHrLlCQLRABsRlhOoV8dDZBFZAJWxeo7y99pS4dIHAuYQHsnzYhh01FpM0XyMCc"
-)
-PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "106540645665809") # Replace with your Meta Phone Number ID
+WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN", "")
+PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID", "1382827574907083")
+WHATSAPP_DISPLAY_NUMBER = os.environ.get("WHATSAPP_DISPLAY_NUMBER", "+1 (555) 670-7097")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 GRAPH_API_VERSION = os.environ.get("GRAPH_API_VERSION", "v19.0")
+
+if not WHATSAPP_TOKEN:
+    print("[WARN] WHATSAPP_TOKEN not set. Outbound WhatsApp messaging will fail. Set it in .env.local.")
+else:
+    print(f"[INFO] WhatsApp configured with Phone ID: {PHONE_NUMBER_ID} ({WHATSAPP_DISPLAY_NUMBER})")
+
 
 app = FastAPI(
     title="PanenLink AI & WhatsApp Webhook API",
@@ -239,9 +259,15 @@ def health_check():
 # CLI Entrypoint
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     print(f"Starting PanenLink API on http://0.0.0.0:{port}...")
     print(f"WhatsApp Webhook Verification URL: http://0.0.0.0:{port}/webhook/whatsapp")
     print(f"Verify Token: {VERIFY_TOKEN}")
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    # NOTE: reload=False to avoid Windows multiprocessing crash with heavy model imports.
+    # For dev hot-reload, run: uvicorn main:app --reload --port 8000
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
