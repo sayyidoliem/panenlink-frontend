@@ -1,9 +1,6 @@
 "use client";
+
 import Link from "next/link";
-import { AppShell } from "@/components/layout/AppShell";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Kpi } from "@/components/ui/Kpi";
-import { RouteMap } from "@/components/maps/RouteMap";
 import {
   ArrowUpRight,
   BellRing,
@@ -16,9 +13,162 @@ import {
   Truck,
   Wallet,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { AppShell } from "@/components/layout/AppShell";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Kpi } from "@/components/ui/Kpi";
+import { RouteMap } from "@/components/maps/RouteMap";
 import { useApp } from "@/shared/app/AppProvider";
 import { useUiTranslation } from "@/shared/app/useUiTranslation";
-import { useState } from "react";
+import { createClient } from "@/shared/lib/supabase/client";
+
+type ShipmentStatus =
+  | "picked_up"
+  | "in_transit"
+  | "nearby"
+  | "delivered"
+  | "cancelled";
+
+type DashboardLoadRow = {
+  id: unknown;
+  public_code: unknown;
+  commodity: unknown;
+  weight_kg: unknown;
+  origin: unknown;
+  destination: unknown;
+  vehicle_type: unknown;
+  budget: unknown;
+  status: unknown;
+  created_at: unknown;
+};
+
+type DashboardShipmentRow = {
+  id: unknown;
+  driver_name: unknown;
+  vehicle_plate: unknown;
+  vehicle_type: unknown;
+  status: unknown;
+  progress_percent: unknown;
+  eta_minutes: unknown;
+  payment_status: unknown;
+  delivered_at: unknown;
+  created_at: unknown;
+  loads: DashboardLoadRow | DashboardLoadRow[] | null;
+};
+
+type DashboardNoteRow = {
+  id: string;
+  content: string;
+  is_done: boolean;
+  created_at: string;
+};
+
+type DashboardData = {
+  totalDeliveredKg: number;
+  activeShipmentCount: number;
+  totalShippingValue: number;
+  activeShipment: DashboardShipmentRow | null;
+  shipments: DashboardShipmentRow[];
+  notes: DashboardNoteRow[];
+};
+
+const EMPTY_DASHBOARD: DashboardData = {
+  totalDeliveredKg: 0,
+  activeShipmentCount: 0,
+  totalShippingValue: 0,
+  activeShipment: null,
+  shipments: [],
+  notes: [],
+};
+
+function textFallback(value: unknown, fallback = "-") {
+  if (typeof value !== "string") return fallback;
+  const result = value.trim();
+  return result || fallback;
+}
+
+function numberFallback(value: unknown) {
+  const result = Number(value);
+  return Number.isFinite(result) ? result : 0;
+}
+
+function getRelatedLoad(value: DashboardLoadRow | DashboardLoadRow[] | null) {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value;
+}
+
+function normalizeShipmentStatus(value: unknown): ShipmentStatus {
+  if (
+    value === "picked_up" ||
+    value === "in_transit" ||
+    value === "nearby" ||
+    value === "delivered" ||
+    value === "cancelled"
+  ) {
+    return value;
+  }
+  return "picked_up";
+}
+
+function shipmentStatusLabel(status: ShipmentStatus) {
+  switch (status) {
+    case "picked_up":
+      return "Menunggu Muat";
+    case "in_transit":
+      return "Dalam Perjalanan";
+    case "nearby":
+      return "Dekat Lokasi";
+    case "delivered":
+      return "Selesai";
+    case "cancelled":
+      return "Dibatalkan";
+  }
+}
+
+function formatDashboardDate(value: unknown) {
+  if (typeof value !== "string") return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatWeightKilograms(weightKg: number) {
+  const tons = weightKg / 1000;
+  return `${tons.toLocaleString("id-ID", {
+    minimumFractionDigits: tons % 1 === 0 ? 0 : 1,
+    maximumFractionDigits: 1,
+  })} Ton`;
+}
+
+function formatMoney(value: number) {
+  return `Rp ${Math.max(0, value).toLocaleString("id-ID")}`;
+}
+
+function formatEta(minutes: number) {
+  if (minutes <= 0) return "-";
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.round(minutes % 60);
+  if (hours <= 0) return `${remainingMinutes}m`;
+  return `${hours}j ${remainingMinutes}m`;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+  return "Terjadi kesalahan yang tidak diketahui.";
+}
 
 function PanenLinkGlyph() {
   return (
@@ -196,12 +346,12 @@ function PanenLinkGlyph() {
 }
 
 export default function Page() {
-  const { account, alerts, pushAlert } = useApp(),
-    [notes, setNotes] = useState([
-      "Siapkan dokumen DO",
-      "Telepon supplier pupuk",
-      "Cek kualitas bawang",
-    ]);
+  const supabase = useMemo(() => createClient(), []);
+  const { account, alerts, pushAlert } = useApp();
+  const [dashboard, setDashboard] = useState<DashboardData>(EMPTY_DASHBOARD);
+  const [loading, setLoading] = useState(true);
+  const [savingNote, setSavingNote] = useState(false);
+
   const t = useUiTranslation([
     "Pantau panen, armada, notifikasi, dan tren distribusi dari satu dashboard.",
     "Operasi PanenLink Hari Ini",
@@ -228,32 +378,149 @@ export default function Page() {
     "Insight Harian",
     "Rekomendasi cepat yang bisa langsung dipakai di operasi lapangan.",
   ]);
-  const shipments = [
-    {
-      date: "18 Ags 2026",
-      commodity: "Cabai Merah",
-      partner: "Pak Agus",
-      status: "Dalam Perjalanan",
-      progress: "65%",
-      vehicle: "CDD Box Pendingin",
-    },
-    {
-      date: "17 Ags 2026",
-      commodity: "Jagung Manis",
-      partner: "CV Subur Tani",
-      status: "Menunggu Muat",
-      progress: "Persiapan",
-      vehicle: "Pickup Gran Max",
-    },
-    {
-      date: "15 Ags 2026",
-      commodity: "Bawang Merah",
-      partner: "Suryono",
-      status: "Selesai",
-      progress: "100%",
-      vehicle: "Tronton",
-    },
-  ];
+
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) {
+        setDashboard(EMPTY_DASHBOARD);
+        return;
+      }
+
+      const { data: ownedLoadRows, error: loadsError } = await supabase
+        .from("loads")
+        .select("id")
+        .eq("owner_id", user.id);
+
+      if (loadsError) throw loadsError;
+
+      const ownedLoadIds = (ownedLoadRows ?? []).map(
+        (row: { id: string | number }) => String(row.id),
+      );
+      let shipmentRows: DashboardShipmentRow[] = [];
+
+      if (ownedLoadIds.length > 0) {
+        const { data, error } = await supabase
+          .from("shipments")
+          .select(
+            `
+            id,
+            driver_name,
+            vehicle_plate,
+            vehicle_type,
+            status,
+            progress_percent,
+            eta_minutes,
+            payment_status,
+            delivered_at,
+            created_at,
+            loads (
+              id,
+              public_code,
+              commodity,
+              weight_kg,
+              origin,
+              destination,
+              vehicle_type,
+              budget,
+              status,
+              created_at
+            )
+          `,
+          )
+          .in("load_id", ownedLoadIds)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        shipmentRows = (data ?? []) as unknown as DashboardShipmentRow[];
+      }
+
+      const { data: noteRows, error: notesError } = await supabase
+        .from("dashboard_notes")
+        .select("id,content,is_done,created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (notesError) throw notesError;
+
+      const completedShipments = shipmentRows.filter(
+        (shipment) => normalizeShipmentStatus(shipment.status) === "delivered",
+      );
+      const activeShipments = shipmentRows.filter((shipment) => {
+        const status = normalizeShipmentStatus(shipment.status);
+        return status !== "delivered" && status !== "cancelled";
+      });
+
+      const totalDeliveredKg = completedShipments.reduce((total, shipment) => {
+        const load = getRelatedLoad(shipment.loads);
+        return total + numberFallback(load?.weight_kg);
+      }, 0);
+
+      const totalShippingValue = completedShipments
+        .filter((shipment) => shipment.payment_status === "paid")
+        .reduce((total, shipment) => {
+          const load = getRelatedLoad(shipment.loads);
+          return total + numberFallback(load?.budget);
+        }, 0);
+
+      setDashboard({
+        totalDeliveredKg,
+        activeShipmentCount: activeShipments.length,
+        totalShippingValue,
+        activeShipment: activeShipments[0] ?? null,
+        shipments: shipmentRows,
+        notes: (noteRows ?? []) as DashboardNoteRow[],
+      });
+    } catch (error) {
+      console.error("Dashboard gagal dimuat:", error);
+      setDashboard(EMPTY_DASHBOARD);
+      window.alert(`Dashboard gagal dimuat. ${getErrorMessage(error)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("dashboard-live-data")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "loads" },
+        () => {
+          void loadDashboard();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "shipments" },
+        () => {
+          void loadDashboard();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "dashboard_notes" },
+        () => {
+          void loadDashboard();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadDashboard, supabase]);
+
   const quickActions = [
     {
       href: "/post-load",
@@ -274,22 +541,110 @@ export default function Page() {
       body: t("Minta rekomendasi rute, harga, dan dokumen lebih cepat."),
     },
   ];
+
   const insights = [
     "Biaya logistik minggu ini turun 12% dibanding minggu lalu.",
     "Jam muat paling efisien ada di pukul 08.00 - 10.00.",
     "Rute Garut - Jakarta paling stabil untuk komoditas cabai.",
   ];
-  const wa = `https://wa.me/${account.phone}?text=${encodeURIComponent("Halo, terkait muatan aktif Garut-Jakarta")}`;
-  const addNote = () => {
-    const x = prompt("Catatan baru");
-    if (!x) return;
-    setNotes((current) => [x, ...current]);
-    pushAlert({
-      title: "Catatan dashboard ditambahkan",
-      body: `"${x}" masuk ke daftar prioritas pemilik.`,
-      tone: "success",
-    });
+
+  const activeShipment = dashboard.activeShipment;
+  const activeLoad = activeShipment
+    ? getRelatedLoad(activeShipment.loads)
+    : null;
+
+  const displayedShipments = dashboard.shipments.slice(0, 3).map((shipment) => {
+    const load = getRelatedLoad(shipment.loads);
+    const status = normalizeShipmentStatus(shipment.status);
+    return {
+      id: String(shipment.id),
+      date: formatDashboardDate(shipment.delivered_at ?? shipment.created_at),
+      commodity: textFallback(load?.commodity),
+      partner: textFallback(shipment.driver_name, "Belum ada driver"),
+      status: shipmentStatusLabel(status),
+      progress:
+        status === "delivered"
+          ? "100%"
+          : `${Math.min(100, Math.max(0, numberFallback(shipment.progress_percent)))}%`,
+      vehicle: textFallback(shipment.vehicle_type ?? load?.vehicle_type),
+    };
+  });
+
+  const totalDeliveredLabel = formatWeightKilograms(dashboard.totalDeliveredKg);
+  const activeLoadLabel = loading
+    ? "Memuat..."
+    : `${dashboard.activeShipmentCount} Truk Jalan`;
+  const shippingValueLabel = formatMoney(dashboard.totalShippingValue);
+
+  const normalizedPhone = account.phone.replace(/\D/g, "");
+  const whatsappPhone = normalizedPhone.startsWith("0")
+    ? `62${normalizedPhone.slice(1)}`
+    : normalizedPhone;
+  const wa =
+    activeLoad && whatsappPhone
+      ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(
+          `Halo, terkait muatan aktif ${textFallback(activeLoad.origin)}-${textFallback(
+            activeLoad.destination,
+            "Tujuan belum ditentukan",
+          )}`,
+        )}`
+      : "#";
+
+  const addNote = async () => {
+    if (savingNote) return;
+    const content = window.prompt("Catatan baru")?.trim();
+    if (!content) return;
+
+    setSavingNote(true);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error("Sesi pengguna tidak ditemukan.");
+
+      const { error } = await supabase.from("dashboard_notes").insert({
+        user_id: user.id,
+        content,
+        is_done: false,
+      });
+      if (error) throw error;
+
+      pushAlert({
+        title: "Catatan dashboard ditambahkan",
+        body: `"${content}" masuk ke daftar prioritas pemilik.`,
+        tone: "success",
+      });
+      await loadDashboard();
+    } catch (error) {
+      console.error("Catatan gagal ditambahkan:", error);
+      window.alert(`Catatan gagal ditambahkan. ${getErrorMessage(error)}`);
+    } finally {
+      setSavingNote(false);
+    }
   };
+
+  const toggleNote = async (note: DashboardNoteRow) => {
+    const nextDone = !note.is_done;
+    setDashboard((current) => ({
+      ...current,
+      notes: current.notes.map((item) =>
+        item.id === note.id ? { ...item, is_done: nextDone } : item,
+      ),
+    }));
+
+    const { error } = await supabase
+      .from("dashboard_notes")
+      .update({ is_done: nextDone })
+      .eq("id", note.id);
+
+    if (error) {
+      console.error("Catatan gagal diperbarui:", error);
+      await loadDashboard();
+    }
+  };
+
   return (
     <AppShell>
       <div className="page">
@@ -305,6 +660,7 @@ export default function Page() {
             </Link>
           }
         />
+
         <section className="card dashboard-hero">
           <div className="dashboard-hero-copy">
             <span className="dashboard-badge">
@@ -332,20 +688,26 @@ export default function Page() {
             <PanenLinkGlyph />
           </div>
         </section>
+
         <div className="kpi-grid">
-          <Kpi icon={Package} label={t("Total Terkirim")} value="18.5 Ton" />
+          <Kpi
+            icon={Package}
+            label={t("Total Terkirim")}
+            value={totalDeliveredLabel}
+          />
           <Kpi
             icon={Truck}
             label={t("Muatan Aktif")}
-            value="2 Truk Jalan"
+            value={activeLoadLabel}
             tone="orange"
           />
           <Kpi
             icon={Wallet}
             label={t("Total Hemat Ongkir")}
-            value="Rp 4.250.000"
+            value={shippingValueLabel}
           />
         </div>
+
         <section className="dashboard-secondary-grid">
           {quickActions.map(({ href, icon: Icon, title, body }) => (
             <Link key={title} href={href} className="dashboard-action-card">
@@ -360,6 +722,7 @@ export default function Page() {
             </Link>
           ))}
         </section>
+
         <div className="dashboard-grid">
           <div>
             <section className="card">
@@ -374,8 +737,12 @@ export default function Page() {
                 </div>
                 <span className="pill">Live Ops</span>
               </div>
-              <RouteMap initial="Garut" />
+              <RouteMap
+                key={textFallback(activeLoad?.origin)}
+                initial={textFallback(activeLoad?.origin, "Garut")}
+              />
             </section>
+
             <section className="card">
               <div className="section-head">
                 <div>
@@ -386,12 +753,14 @@ export default function Page() {
                     )}
                   </p>
                 </div>
-                <span className="pill muted">3 Load</span>
+                <span className="pill muted">
+                  {displayedShipments.length} Load
+                </span>
               </div>
               <table>
                 <tbody>
-                  {shipments.map((shipment) => (
-                    <tr key={`${shipment.date}-${shipment.commodity}`}>
+                  {displayedShipments.map((shipment) => (
+                    <tr key={shipment.id}>
                       <td>{shipment.date}</td>
                       <td>
                         <strong>{shipment.commodity}</strong>
@@ -401,9 +770,7 @@ export default function Page() {
                       <td>{shipment.progress}</td>
                       <td>
                         <i
-                          className={`status ${
-                            shipment.status === "Selesai" ? "green" : "blue"
-                          }`}
+                          className={`status ${shipment.status === "Selesai" ? "green" : "blue"}`}
                         >
                           {shipment.status}
                         </i>
@@ -414,6 +781,7 @@ export default function Page() {
               </table>
             </section>
           </div>
+
           <aside>
             <section className="card active-load premium">
               <div className="section-head">
@@ -427,26 +795,76 @@ export default function Page() {
                 </div>
                 <ChartNoAxesCombined />
               </div>
-              <b>Cabai Merah (5 Ton)</b>
-              <p>Garut → Jakarta</p>
+              <b>
+                {activeLoad
+                  ? `${textFallback(activeLoad.commodity)} (${formatWeightKilograms(
+                      numberFallback(activeLoad.weight_kg),
+                    )})`
+                  : "Belum ada muatan aktif"}
+              </b>
+              <p>
+                {activeLoad
+                  ? `${textFallback(activeLoad.origin)} → ${textFallback(
+                      activeLoad.destination,
+                      "Tujuan belum ditentukan",
+                    )}`
+                  : "-"}
+              </p>
               <div className="progress">
-                <i />
+                <i
+                  style={{
+                    width: `${
+                      activeShipment
+                        ? Math.min(
+                            100,
+                            Math.max(
+                              0,
+                              numberFallback(activeShipment.progress_percent),
+                            ),
+                          )
+                        : 0
+                    }%`,
+                  }}
+                />
               </div>
               <div className="active-load-metrics">
                 <span>
                   <small>ETA</small>
-                  <strong>2j 15m</strong>
+                  <strong>
+                    {activeShipment
+                      ? formatEta(numberFallback(activeShipment.eta_minutes))
+                      : "-"}
+                  </strong>
                 </span>
                 <span>
                   <small>Driver</small>
-                  <strong>Pak Agus</strong>
+                  <strong>
+                    {activeShipment
+                      ? textFallback(
+                          activeShipment.driver_name,
+                          "Belum ada driver",
+                        )
+                      : "-"}
+                  </strong>
                 </span>
               </div>
-              <a className="button outline full" target="_blank" href={wa}>
+              <a
+                className="button outline full"
+                target="_blank"
+                rel="noreferrer"
+                href={wa}
+                onClick={(event) => {
+                  if (!activeShipment || wa === "#") {
+                    event.preventDefault();
+                    window.alert("Kontak WhatsApp belum tersedia.");
+                  }
+                }}
+              >
                 <MessageCircle />
                 Chat Driver WA
               </a>
             </section>
+
             <section className="card dashboard-notification-card">
               <div className="section-head">
                 <div>
@@ -471,6 +889,7 @@ export default function Page() {
                 ))}
               </div>
             </section>
+
             <section className="card">
               <div className="section-head">
                 <div>
@@ -483,16 +902,25 @@ export default function Page() {
                 </div>
                 <Boxes />
               </div>
-              {notes.map((x) => (
-                <label className="check" key={x}>
-                  <input type="checkbox" />
-                  <span>{x}</span>
+              {dashboard.notes.map((note) => (
+                <label className="check" key={note.id}>
+                  <input
+                    type="checkbox"
+                    checked={note.is_done}
+                    onChange={() => void toggleNote(note)}
+                  />
+                  <span>{note.content}</span>
                 </label>
               ))}
-              <button className="button ghost" onClick={addNote}>
+              <button
+                className="button ghost"
+                onClick={() => void addNote()}
+                disabled={savingNote}
+              >
                 + Tambah
               </button>
             </section>
+
             <section className="card dashboard-insight-card">
               <div className="section-head">
                 <div>

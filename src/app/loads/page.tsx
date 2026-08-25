@@ -1,5 +1,9 @@
 "use client";
+
 import Link from "next/link";
+import { Search, Scale, MapPin, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { AppShell } from "@/components/layout/AppShell";
 import { RouteMap } from "@/components/maps/RouteMap";
 import { Search, Scale, MapPin, SlidersHorizontal } from "lucide-react";
@@ -73,31 +77,39 @@ export default function Page() {
       <div className="filterbar">
         <label>
           <Search />
+
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(event) => setQ(event.target.value)}
             placeholder="Cari lokasi, komoditas, ID..."
           />
         </label>
         <select value={commodity} onChange={(e) => setCommodity(e.target.value)}>
           <option value="all">Semua Komoditas</option>
+
           <option value="cabai">Cabai</option>
+
           <option value="bawang">Bawang</option>
+
           <option value="tomat">Tomat</option>
         </select>
+
         <label className="range">
-          <SlidersHorizontal /> Maks {max / 1000} ton
+          <SlidersHorizontal />
+          Maks {max / 1000} ton
           <input
             type="range"
             min="1000"
             max="10000"
             step="500"
             value={max}
-            onChange={(e) => setMax(+e.target.value)}
+            onChange={(event) => setMax(Number(event.target.value))}
           />
         </label>
-        <span>{rows.length} Muatan</span>
+
+        <span>{loading ? "Memuat..." : `${rows.length} Muatan`}</span>
       </div>
+
       <div className="split">
         <section className="load-list">
           <h3>Muatan tersedia</h3>
@@ -125,27 +137,40 @@ export default function Page() {
             >
               <header>
                 <span>
-                  <b>{x.name}</b>
+                  <b>{load.name}</b>
+
                   <small>
                     <Scale />
-                    {x.kg / 1000} Ton
+                    {load.kg / 1000} Ton
                   </small>
                 </span>
-                {x.urgent && <i>Urgent</i>}
+
+                {load.urgent && <i>Urgent</i>}
               </header>
+
               <div className="route">
                 <MapPin />
+
                 <b>
-                  {x.origin} → {x.destination}
+                  {load.origin} → {load.destination}
                 </b>
               </div>
+
               <footer>
-                <strong>Rp {x.price.toLocaleString("id-ID")}</strong>
-                <Link href={`/loads/${x.id}`}>Lihat Detail</Link>
+                <strong>
+                  {load.price > 0
+                    ? `Rp ${load.price.toLocaleString("id-ID")}`
+                    : "Anggaran terbuka"}
+                </strong>
+
+                <Link href={`/loads/${encodeURIComponent(load.publicCode)}`}>
+                  Lihat Detail
+                </Link>
               </footer>
             </article>
           ))}
         </section>
+
         <section className="map">
           {selected && <RouteMap initial={selected.origin} />}
           {selected && (

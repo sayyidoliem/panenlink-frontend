@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+
 import { createClient } from "@/shared/lib/supabase/client";
 import type { SupabaseProfile } from "@/shared/lib/supabase/profile-types";
 
@@ -36,42 +37,82 @@ export type Account = {
   documents: Record<string, string>;
 };
 
+type NotificationSettings = {
+  loads: boolean;
+  payout: boolean;
+  trends: boolean;
+};
+
+type SecurityState = {
+  twoFactor: boolean;
+  pin: string;
+  passwordChanged: string;
+};
+
 type State = {
   theme: Theme;
   lang: Lang;
   account: Account;
   notifications: Record<string, boolean>;
   alerts: AlertItem[];
-  security: {
-    twoFactor: boolean;
-    pin: string;
-    passwordChanged: string;
-  };
-  setTheme: (v: Theme) => void;
-  setLang: (v: Lang) => void;
-  updateAccount: (v: Partial<Account>) => void;
-  setNotifications: (v: Record<string, boolean>) => void;
-  pushAlert: (v: Omit<AlertItem, "id" | "time" | "read">) => void;
+  security: SecurityState;
+  setTheme: (value: Theme) => void;
+  setLang: (value: Lang) => void;
+  updateAccount: (value: Partial<Account>) => void;
+  setNotifications: (value: Record<string, boolean>) => void;
+  pushAlert: (value: Omit<AlertItem, "id" | "time" | "read">) => void;
   markAlertsRead: () => void;
   removeAlert: (id: string) => void;
-  setSecurity: (v: Partial<State["security"]>) => void;
+  setSecurity: (value: Partial<SecurityState>) => void;
   t: (id: string) => string;
 };
 
-const defaults: Account = {
-  name: "Haji Supriatna",
-  email: "haji@panenlink.id",
-  phone: "6281234567890",
-  location: "Garut, Jawa Barat",
-  role: "Petani & Pengumpul",
+type UserSettingsRow = {
+  user_id: string;
+  theme: Theme;
+  lang: Lang;
+  notify_loads: boolean;
+  notify_payout: boolean;
+  notify_trends: boolean;
+  two_factor_enabled: boolean;
+  password_changed_label: string | null;
+};
+
+type AlertRow = {
+  id: string;
+  title: string;
+  body: string;
+  tone: AlertTone;
+  read: boolean;
+  created_at: string;
+};
+
+type VerificationDocumentRow = {
+  document_type: string;
+  status: string;
+};
+
+const EMPTY_ACCOUNT: Account = {
+  name: "-",
+  email: "-",
+  phone: "0",
+  location: "-",
+  role: "-",
   photo: "",
-  verified: true,
-  documents: {
-    KTP: "verified",
-    SIM: "verified",
-    STNK: "pending",
-    Lahan: "missing",
-  },
+  verified: false,
+  documents: {},
+};
+
+const DEFAULT_NOTIFICATIONS: NotificationSettings = {
+  loads: true,
+  payout: true,
+  trends: false,
+};
+
+const DEFAULT_SECURITY: SecurityState = {
+  twoFactor: false,
+  pin: "",
+  passwordChanged: "Belum pernah",
 };
 
 const dict: Record<Lang, Record<string, string>> = {
@@ -101,252 +142,455 @@ const dict: Record<Lang, Record<string, string>> = {
   },
 };
 
-const defaultAlerts: AlertItem[] = [
-  {
-    id: "alert-load-1",
-    title: "Muatan aktif bergerak",
-    body: "Cabai Merah Garut - Jakarta telah menempuh 65% perjalanan.",
-    tone: "info",
-    time: "Baru saja",
-    read: false,
-  },
-  {
-    id: "alert-doc-1",
-    title: "Dokumen diverifikasi",
-    body: "KTP akun Anda sudah terverifikasi oleh PanenLink.",
-    tone: "success",
-    time: "12 menit lalu",
-    read: false,
-  },
-];
+const AppContext = createContext<State | null>(null);
 
-const C = createContext<State | null>(null);
+function getText(value: unknown, fallback = "-") {
+  if (typeof value !== "string") {
+    return fallback;
+  }
 
-function profileToAccount(
-  profile: SupabaseProfile,
-  email: string,
-  currentAccount: Account,
-): Account {
+  const result = value.trim();
+
+  return result || fallback;
+}
+
+function getPhone(value: unknown) {
+  if (typeof value !== "string") {
+    return "0";
+  }
+
+  const phone = value.replace(/\D/g, "");
+
+  return phone || "0";
+}
+
+function profileToAccount(profile: SupabaseProfile, email: string): Account {
   return {
-    ...currentAccount,
-    name: profile.name ?? currentAccount.name,
-    email: email || currentAccount.email,
-    phone: profile.phone ?? currentAccount.phone,
-    location: profile.location ?? currentAccount.location,
-    role: profile.role ?? currentAccount.role,
-    photo: profile.photo_url ?? currentAccount.photo,
-    verified: profile.verified ?? currentAccount.verified,
+    name: getText(profile.name),
+    email: getText(email),
+    phone: getPhone(profile.phone),
+    location: getText(profile.location),
+    role: getText(profile.role),
+    photo: typeof profile.photo_url === "string" ? profile.photo_url : "",
+    verified: Boolean(profile.verified),
+    documents: {},
+  };
+}
+
+function formatAlertTime(createdAt: string) {
+  const created = new Date(createdAt);
+
+  if (Number.isNaN(created.getTime())) {
+    return "-";
+  }
+
+  const difference = Date.now() - created.getTime();
+  const minutes = Math.floor(difference / 60000);
+
+  if (minutes < 1) {
+    return "Baru saja";
+  }
+
+  if (minutes < 60) {
+    return `${minutes} menit lalu`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `${hours} jam lalu`;
+  }
+
+  const days = Math.floor(hours / 24);
+
+  if (days < 7) {
+    return `${days} hari lalu`;
+  }
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(created);
+}
+
+function alertRowToItem(row: AlertRow): AlertItem {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    tone: row.tone,
+    read: row.read,
+    time: formatAlertTime(row.created_at),
   };
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [theme, setTheme] = useState<Theme>("light");
-  const [lang, setLang] = useState<Lang>("id");
-  const [account, setAccount] = useState<Account>(defaults);
-  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const [theme, setThemeState] = useState<Theme>("light");
+  const [lang, setLangState] = useState<Lang>("id");
+  const [account, setAccount] = useState<Account>(EMPTY_ACCOUNT);
 
   const [notifications, setNotificationsState] = useState<
     Record<string, boolean>
-  >({
-    loads: true,
-    payout: true,
-    trends: false,
-  });
+  >(DEFAULT_NOTIFICATIONS);
 
-  const [alerts, setAlerts] = useState<AlertItem[]>(defaultAlerts);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
-  const [security, setSecurityState] = useState({
-    twoFactor: true,
-    pin: "123456",
-    passwordChanged: "Belum pernah",
-  });
+  const [security, setSecurityState] =
+    useState<SecurityState>(DEFAULT_SECURITY);
 
-  const loadAccountFromSupabase = useCallback(async () => {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  const applyAppearance = useCallback((nextTheme: Theme, nextLang: Lang) => {
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)",
+    ).matches;
+
+    const isDark =
+      nextTheme === "dark" || (nextTheme === "system" && prefersDark);
+
+    document.documentElement.dataset.theme = isDark ? "dark" : "light";
+
+    document.documentElement.lang = nextLang;
+  }, []);
+
+  const ensureUserSettings = useCallback(
+    async (currentUserId: string) => {
+      const { data, error } = await supabase
+        .from("user_settings")
+        .select(
+          [
+            "user_id",
+            "theme",
+            "lang",
+            "notify_loads",
+            "notify_payout",
+            "notify_trends",
+            "two_factor_enabled",
+            "password_changed_label",
+          ].join(","),
+        )
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        return data as UserSettingsRow;
+      }
+
+      const { data: createdSettings, error: createError } = await supabase
+        .from("user_settings")
+        .insert({
+          user_id: currentUserId,
+          theme: "light",
+          lang: "id",
+          notify_loads: true,
+          notify_payout: true,
+          notify_trends: false,
+          two_factor_enabled: false,
+          password_changed_label: "Belum pernah",
+        })
+        .select(
+          [
+            "user_id",
+            "theme",
+            "lang",
+            "notify_loads",
+            "notify_payout",
+            "notify_trends",
+            "two_factor_enabled",
+            "password_changed_label",
+          ].join(","),
+        )
+        .single();
+
+      if (createError) {
+        throw createError;
+      }
+
+      return createdSettings as UserSettingsRow;
+    },
+    [supabase],
+  );
+
+  const loadApplicationData = useCallback(async () => {
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError) {
-      console.error("Gagal mengambil pengguna Supabase:", userError.message);
+    if (userError || !user) {
+      setUserId(null);
+      setAccount(EMPTY_ACCOUNT);
+      setAlerts([]);
+      setNotificationsState(DEFAULT_NOTIFICATIONS);
+      setSecurityState(DEFAULT_SECURITY);
+      setInitialized(true);
       return;
     }
 
-    if (!user) {
-      return;
-    }
+    setUserId(user.id);
 
-    const { data: profile, error: profileError } = (await supabase
-      .from("profiles")
-      .select(
-        `
-          id,
-          name,
-          role,
-          location,
-          phone,
-          photo_url,
-          verified,
-          member_since,
-          load_count,
-          completion_percentage,
-          rating
-        `,
-      )
-      .eq("id", user.id)
-      .maybeSingle()) as { data: SupabaseProfile | null; error: any };
+    try {
+      const [profileResult, settings, alertsResult, documentsResult] =
+        await Promise.all([
+          supabase
+            .from("profiles")
+            .select(
+              [
+                "id",
+                "name",
+                "role",
+                "location",
+                "phone",
+                "photo_url",
+                "verified",
+                "member_since",
+                "load_count",
+                "completion_percentage",
+                "rating",
+              ].join(","),
+            )
+            .eq("id", user.id)
+            .maybeSingle(),
 
-    if (profileError) {
-      console.error(
-        "Gagal mengambil profil dari Supabase:",
-        profileError.message,
+          ensureUserSettings(user.id),
+
+          supabase
+            .from("alerts")
+            .select(
+              ["id", "title", "body", "tone", "read", "created_at"].join(","),
+            )
+            .eq("user_id", user.id)
+            .order("created_at", {
+              ascending: false,
+            })
+            .limit(50),
+
+          supabase
+            .from("verification_documents")
+            .select("document_type,status")
+            .eq("user_id", user.id),
+        ]);
+
+      if (profileResult.error) {
+        throw profileResult.error;
+      }
+
+      if (alertsResult.error) {
+        throw alertsResult.error;
+      }
+
+      if (documentsResult.error) {
+        throw documentsResult.error;
+      }
+
+      const profile = profileResult.data as SupabaseProfile | null;
+
+      const authName =
+        user.user_metadata?.full_name ??
+        user.user_metadata?.name ??
+        user.user_metadata?.display_name ??
+        "-";
+
+      const authPhone =
+        user.phone ??
+        user.user_metadata?.phone ??
+        user.user_metadata?.phone_number ??
+        "0";
+
+      const authPhoto =
+        user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? "";
+
+      const documents = Object.fromEntries(
+        ((documentsResult.data as VerificationDocumentRow[] | null) ?? []).map(
+          (document: VerificationDocumentRow) => [
+            String(document.document_type),
+            String(document.status),
+          ],
+        ),
       );
 
-      setAccount((currentAccount) => ({
-        ...currentAccount,
-        email: user.email ?? currentAccount.email,
-      }));
-
-      return;
-    }
-
-    if (!profile) {
-      setAccount((currentAccount) => ({
-        ...currentAccount,
-        name:
-          typeof user.user_metadata?.name === "string"
-            ? user.user_metadata.name
-            : currentAccount.name,
-        email: user.email ?? currentAccount.email,
-        photo:
-          typeof user.user_metadata?.avatar_url === "string"
-            ? user.user_metadata.avatar_url
-            : currentAccount.photo,
-      }));
-
-      return;
-    }
-
-    setAccount((currentAccount) =>
-      profileToAccount(profile, user.email ?? "", currentAccount),
-    );
-  }, [supabase]);
-
-  useEffect(() => {
-    try {
-      const savedPreferences = localStorage.getItem("pl_preferences");
-
-      if (savedPreferences) {
-        const data = JSON.parse(savedPreferences) as {
-          theme?: Theme;
-          lang?: Lang;
-          account?: Partial<Account>;
-          notifications?: Record<string, boolean>;
-          alerts?: AlertItem[];
-          security?: State["security"];
-        };
-
-        setTheme(data.theme ?? "system");
-        setLang(data.lang ?? "id");
-
-        /*
-         * Account dari localStorage hanya menjadi data sementara.
-         * Setelah ini, data profil terbaru akan diambil dari Supabase.
-         */
+      if (profile) {
         setAccount({
-          ...defaults,
-          ...data.account,
-          documents: {
-            ...defaults.documents,
-            ...data.account?.documents,
-          },
+          ...profileToAccount(profile, user.email ?? "-"),
+          documents,
         });
-
-        setNotificationsState(
-          data.notifications ?? {
-            loads: true,
-            payout: true,
-            trends: false,
-          },
-        );
-
-        setAlerts(data.alerts ?? defaultAlerts);
-
-        setSecurityState(
-          data.security ?? {
-            twoFactor: true,
-            pin: "123456",
-            passwordChanged: "Belum pernah",
-          },
-        );
+      } else {
+        setAccount({
+          name: getText(authName),
+          email: getText(user.email),
+          phone: getPhone(authPhone),
+          location: "-",
+          role: "-",
+          photo: String(authPhoto),
+          verified: false,
+          documents,
+        });
       }
+
+      const settingsRow = settings as UserSettingsRow;
+
+      setThemeState(settingsRow.theme);
+      setLangState(settingsRow.lang);
+
+      setNotificationsState({
+        loads: settingsRow.notify_loads,
+        payout: settingsRow.notify_payout,
+        trends: settingsRow.notify_trends,
+      });
+
+      setSecurityState({
+        twoFactor: settingsRow.two_factor_enabled,
+        pin: "",
+        passwordChanged: settingsRow.password_changed_label ?? "Belum pernah",
+      });
+
+      setAlerts(
+        ((alertsResult.data as AlertRow[] | null) ?? []).map(alertRowToItem),
+      );
+
+      applyAppearance(settingsRow.theme, settingsRow.lang);
     } catch (error) {
-      console.error("Gagal membaca preferensi lokal:", error);
+      console.error("Gagal memuat data aplikasi dari Supabase:", error);
     } finally {
-      setPreferencesLoaded(true);
+      setInitialized(true);
     }
-  }, []);
+  }, [applyAppearance, ensureUserSettings, supabase]);
 
   useEffect(() => {
-    if (!preferencesLoaded) {
-      return;
-    }
+    const savedTheme = localStorage.getItem(
+      "pl_anonymous_theme",
+    ) as Theme | null;
 
-    void loadAccountFromSupabase();
+    const savedLang = localStorage.getItem("pl_anonymous_lang") as Lang | null;
+
+    const initialTheme =
+      savedTheme === "light" || savedTheme === "dark" || savedTheme === "system"
+        ? savedTheme
+        : "light";
+
+    const initialLang = savedLang === "en" ? "en" : "id";
+
+    setThemeState(initialTheme);
+    setLangState(initialLang);
+    applyAppearance(initialTheme, initialLang);
+
+    void loadApplicationData();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      void loadAccountFromSupabase();
+      void loadApplicationData();
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadAccountFromSupabase, preferencesLoaded, supabase]);
+  }, [applyAppearance, loadApplicationData, supabase]);
 
   useEffect(() => {
-    if (!preferencesLoaded) {
+    if (!initialized) {
       return;
     }
 
-    const dark =
-      theme === "dark" ||
-      (theme === "system" &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches);
+    applyAppearance(theme, lang);
+  }, [applyAppearance, initialized, theme, lang]);
 
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-    document.documentElement.lang = lang;
+  useEffect(() => {
+    if (theme !== "system") {
+      return;
+    }
 
-    localStorage.setItem(
-      "pl_preferences",
-      JSON.stringify({
-        theme,
-        lang,
-        account,
-        notifications,
-        alerts,
-        security,
-      }),
-    );
-  }, [
-    preferencesLoaded,
-    theme,
-    lang,
-    account,
-    notifications,
-    alerts,
-    security,
-  ]);
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const handleChange = () => {
+      applyAppearance(theme, lang);
+    };
+
+    media.addEventListener("change", handleChange);
+
+    return () => {
+      media.removeEventListener("change", handleChange);
+    };
+  }, [applyAppearance, lang, theme]);
+
+  const updateUserSettings = useCallback(
+    async (
+      values: Partial<{
+        theme: Theme;
+        lang: Lang;
+        notify_loads: boolean;
+        notify_payout: boolean;
+        notify_trends: boolean;
+        two_factor_enabled: boolean;
+        password_changed_label: string;
+      }>,
+    ) => {
+      if (!userId) {
+        return;
+      }
+
+      const { error } = await supabase.from("user_settings").upsert(
+        {
+          user_id: userId,
+          ...values,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "user_id",
+        },
+      );
+
+      if (error) {
+        console.error("Pengaturan gagal disimpan:", error.message);
+
+        await loadApplicationData();
+      }
+    },
+    [loadApplicationData, supabase, userId],
+  );
+
+  const setTheme = useCallback(
+    (value: Theme) => {
+      setThemeState(value);
+      applyAppearance(value, lang);
+
+      if (userId) {
+        void updateUserSettings({
+          theme: value,
+        });
+      } else {
+        localStorage.setItem("pl_anonymous_theme", value);
+      }
+    },
+    [applyAppearance, lang, updateUserSettings, userId],
+  );
+
+  const setLang = useCallback(
+    (value: Lang) => {
+      setLangState(value);
+      applyAppearance(theme, value);
+
+      if (userId) {
+        void updateUserSettings({
+          lang: value,
+        });
+      } else {
+        localStorage.setItem("pl_anonymous_lang", value);
+      }
+    },
+    [applyAppearance, theme, updateUserSettings, userId],
+  );
 
   const updateAccount = useCallback(
     (values: Partial<Account>) => {
-      /*
-       * State diperbarui langsung agar seluruh UI yang memakai useApp()
-       * langsung mendapatkan data terbaru.
-       */
       setAccount((currentAccount) => ({
         ...currentAccount,
         ...values,
@@ -358,9 +602,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : currentAccount.documents,
       }));
 
-      /*
-       * Sinkronkan hanya kolom yang memang tersedia pada tabel profiles.
-       */
       void (async () => {
         const {
           data: { user },
@@ -368,17 +609,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } = await supabase.auth.getUser();
 
         if (userError || !user) {
-          if (userError) {
-            console.error(
-              "Gagal mendapatkan pengguna untuk memperbarui profil:",
-              userError.message,
-            );
-          }
-
+          await loadApplicationData();
           return;
         }
 
-        const profileUpdates: Partial<SupabaseProfile> = {};
+        const profileUpdates: Record<string, unknown> = {
+          updated_at: new Date().toISOString(),
+        };
 
         if (values.name !== undefined) {
           profileUpdates.name = values.name;
@@ -404,48 +641,214 @@ export function AppProvider({ children }: { children: ReactNode }) {
           profileUpdates.verified = values.verified;
         }
 
-        if (Object.keys(profileUpdates).length > 0) {
-          const { error: updateError } = await supabase
+        if (Object.keys(profileUpdates).length > 1) {
+          const { error: profileError } = await supabase
             .from("profiles")
-            .update(profileUpdates)
-            .eq("id", user.id);
-
-          if (updateError) {
-            console.error(
-              "Gagal memperbarui profil di Supabase:",
-              updateError.message,
+            .upsert(
+              {
+                id: user.id,
+                ...profileUpdates,
+              },
+              {
+                onConflict: "id",
+              },
             );
 
-            /*
-             * Ambil ulang profil agar state kembali mengikuti data
-             * yang sebenarnya tersimpan di Supabase.
-             */
-            await loadAccountFromSupabase();
+          if (profileError) {
+            console.error("Profil gagal diperbarui:", profileError.message);
+
+            await loadApplicationData();
+            return;
           }
         }
 
-        /*
-         * Email berada di Supabase Auth, bukan pada tabel profiles.
-         * Proses ini dapat mengirim email konfirmasi, tergantung
-         * konfigurasi autentikasi Supabase.
-         */
         if (values.email !== undefined && values.email !== user.email) {
           const { error: emailError } = await supabase.auth.updateUser({
             email: values.email,
           });
 
           if (emailError) {
-            console.error(
-              "Gagal memperbarui email Supabase:",
-              emailError.message,
-            );
+            console.error("Email gagal diperbarui:", emailError.message);
 
-            await loadAccountFromSupabase();
+            await loadApplicationData();
           }
         }
       })();
     },
-    [loadAccountFromSupabase, supabase],
+    [loadApplicationData, supabase],
+  );
+
+  const setNotifications = useCallback(
+    (value: Record<string, boolean>) => {
+      const nextNotifications = {
+        loads: Boolean(value.loads),
+        payout: Boolean(value.payout),
+        trends: Boolean(value.trends),
+      };
+
+      setNotificationsState(nextNotifications);
+
+      void updateUserSettings({
+        notify_loads: nextNotifications.loads,
+        notify_payout: nextNotifications.payout,
+        notify_trends: nextNotifications.trends,
+      });
+    },
+    [updateUserSettings],
+  );
+
+  const pushAlert = useCallback(
+    (value: Omit<AlertItem, "id" | "time" | "read">) => {
+      const temporaryId = `alert-${Date.now()}`;
+
+      const optimisticAlert: AlertItem = {
+        id: temporaryId,
+        title: value.title,
+        body: value.body,
+        tone: value.tone,
+        time: "Baru saja",
+        read: false,
+      };
+
+      setAlerts((currentAlerts) => [optimisticAlert, ...currentAlerts]);
+
+      if (!userId) {
+        return;
+      }
+
+      void (async () => {
+        const { data, error } = await supabase
+          .from("alerts")
+          .insert({
+            user_id: userId,
+            title: value.title,
+            body: value.body,
+            tone: value.tone,
+            read: false,
+          })
+          .select(
+            ["id", "title", "body", "tone", "read", "created_at"].join(","),
+          )
+          .single();
+
+        if (error) {
+          console.error("Notifikasi gagal dibuat:", error.message);
+
+          setAlerts((currentAlerts) =>
+            currentAlerts.filter((alert) => alert.id !== temporaryId),
+          );
+
+          return;
+        }
+
+        const createdAlert = alertRowToItem(data as AlertRow);
+
+        setAlerts((currentAlerts) =>
+          currentAlerts.map((alert) =>
+            alert.id === temporaryId ? createdAlert : alert,
+          ),
+        );
+      })();
+    },
+    [supabase, userId],
+  );
+
+  const markAlertsRead = useCallback(() => {
+    setAlerts((currentAlerts) =>
+      currentAlerts.map((alert) => ({
+        ...alert,
+        read: true,
+      })),
+    );
+
+    if (!userId) {
+      return;
+    }
+
+    void (async () => {
+      const { error } = await supabase
+        .from("alerts")
+        .update({
+          read: true,
+        })
+        .eq("user_id", userId)
+        .eq("read", false);
+
+      if (error) {
+        console.error("Notifikasi gagal ditandai dibaca:", error.message);
+
+        await loadApplicationData();
+      }
+    })();
+  }, [loadApplicationData, supabase, userId]);
+
+  const removeAlert = useCallback(
+    (id: string) => {
+      let removedAlert: AlertItem | undefined;
+
+      setAlerts((currentAlerts) => {
+        removedAlert = currentAlerts.find((alert) => alert.id === id);
+
+        return currentAlerts.filter((alert) => alert.id !== id);
+      });
+
+      if (!userId || id.startsWith("alert-")) {
+        return;
+      }
+
+      void (async () => {
+        const { error } = await supabase
+          .from("alerts")
+          .delete()
+          .eq("id", id)
+          .eq("user_id", userId);
+
+        if (error) {
+          console.error("Notifikasi gagal dihapus:", error.message);
+
+          if (removedAlert) {
+            setAlerts((currentAlerts) => [
+              removedAlert as AlertItem,
+              ...currentAlerts,
+            ]);
+          }
+        }
+      })();
+    },
+    [supabase, userId],
+  );
+
+  const setSecurity = useCallback(
+    (value: Partial<SecurityState>) => {
+      const safeValue = {
+        ...value,
+        pin: "",
+      };
+
+      setSecurityState((currentSecurity) => ({
+        ...currentSecurity,
+        ...safeValue,
+        pin: "",
+      }));
+
+      const settingsUpdate: Partial<{
+        two_factor_enabled: boolean;
+        password_changed_label: string;
+      }> = {};
+
+      if (value.twoFactor !== undefined) {
+        settingsUpdate.two_factor_enabled = value.twoFactor;
+      }
+
+      if (value.passwordChanged !== undefined) {
+        settingsUpdate.password_changed_label = value.passwordChanged;
+      }
+
+      if (Object.keys(settingsUpdate).length > 0) {
+        void updateUserSettings(settingsUpdate);
+      }
+    },
+    [updateUserSettings],
   );
 
   const value = useMemo<State>(
@@ -459,43 +862,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTheme,
       setLang,
       updateAccount,
-      setNotifications: setNotificationsState,
-      pushAlert: (v) =>
-        setAlerts((current) => [
-          {
-            id: `alert-${Date.now()}-${current.length}`,
-            title: v.title,
-            body: v.body,
-            tone: v.tone,
-            time: "Baru saja",
-            read: false,
-          },
-          ...current,
-        ]),
-      markAlertsRead: () =>
-        setAlerts((current) =>
-          current.map((alert) => ({
-            ...alert,
-            read: true,
-          })),
-        ),
-      removeAlert: (id) =>
-        setAlerts((current) => current.filter((alert) => alert.id !== id)),
-      setSecurity: (v) =>
-        setSecurityState((current) => ({
-          ...current,
-          ...v,
-        })),
+      setNotifications,
+      pushAlert,
+      markAlertsRead,
+      removeAlert,
+      setSecurity,
       t: (id) => dict[lang][id] || id,
     }),
-    [theme, lang, account, notifications, alerts, security, updateAccount],
+    [
+      account,
+      alerts,
+      lang,
+      markAlertsRead,
+      notifications,
+      pushAlert,
+      removeAlert,
+      security,
+      setLang,
+      setNotifications,
+      setSecurity,
+      setTheme,
+      theme,
+      updateAccount,
+    ],
   );
 
-  return <C.Provider value={value}>{children}</C.Provider>;
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {
-  const context = useContext(C);
+  const context = useContext(AppContext);
 
   if (!context) {
     throw new Error("AppProvider missing");
