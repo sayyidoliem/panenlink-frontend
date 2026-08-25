@@ -1,147 +1,311 @@
 "use client";
+
 import Link from "next/link";
+import { Search, Scale, MapPin, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { AppShell } from "@/components/layout/AppShell";
 import { RouteMap } from "@/components/maps/RouteMap";
-import { Search, Scale, MapPin, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
-const all = [
-  {
-    id: "LOAD-2026-0821",
-    name: "Cabai Merah Keriting",
-    kg: 5000,
-    origin: "Garut",
-    destination: "Jakarta",
-    price: 4500000,
-    urgent: true,
-  },
-  {
-    id: "LOAD-2026-0805",
-    name: "Bawang Merah",
-    kg: 3200,
-    origin: "Brebes",
-    destination: "Bandung",
-    price: 2100000,
-  },
-  {
-    id: "LOAD-2026-0801",
-    name: "Tomat Apel",
-    kg: 2800,
-    origin: "Sukabumi",
-    destination: "Tangerang",
-    price: 1850000,
-  },
-  {
-    id: "LOAD-2026-0794",
-    name: "Kentang Granola",
-    kg: 4500,
-    origin: "Dieng",
-    destination: "Bekasi",
-    price: 3200000,
-  },
-  {
-    id: "LOAD-2026-0788",
-    name: "Jagung Manis",
-    kg: 6000,
-    origin: "Jember",
-    destination: "Surabaya",
-    price: 2750000,
-  },
-  {
-    id: "LOAD-2026-0772",
-    name: "Pisang Cavendish",
-    kg: 3800,
-    origin: "Lumajang",
-    destination: "Jakarta",
-    price: 2400000,
-    urgent: true,
-  },
-];
+import { createClient } from "@/shared/lib/supabase/client";
+
+type LoadItem = {
+  id: string;
+  publicCode: string;
+  name: string;
+  kg: number;
+  origin: string;
+  destination: string;
+  price: number;
+  urgent: boolean;
+};
+
+type LoadRow = {
+  id: unknown;
+  public_code: unknown;
+  commodity: unknown;
+  weight_kg: unknown;
+  origin: unknown;
+  destination: unknown;
+  budget: unknown;
+  is_urgent: unknown;
+};
+
+function textFallback(value: unknown, fallback = "-") {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const result = value.trim();
+
+  return result || fallback;
+}
+
+function numberFallback(value: unknown) {
+  const result = Number(value);
+
+  return Number.isFinite(result) ? result : 0;
+}
+
+function rowToLoad(row: LoadRow): LoadItem {
+  return {
+    id: String(row.id),
+    publicCode: textFallback(row.public_code),
+    name: textFallback(row.commodity),
+    kg: numberFallback(row.weight_kg),
+    origin: textFallback(row.origin),
+    destination: textFallback(row.destination, "Tujuan belum ditentukan"),
+    price: numberFallback(row.budget),
+    urgent: Boolean(row.is_urgent),
+  };
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "Terjadi kesalahan yang tidak diketahui.";
+}
+
 export default function Page() {
-  const [q, setQ] = useState(""),
-    [commodity, setCommodity] = useState("all"),
-    [max, setMax] = useState(10000),
-    [selected, setSelected] = useState(all[0]);
+  const supabase = createClient();
+
+  const [all, setAll] = useState<LoadItem[]>([]);
+
+  const [q, setQ] = useState("");
+
+  const [commodity, setCommodity] = useState("all");
+
+  const [max, setMax] = useState(10000);
+
+  const [selected, setSelected] = useState<LoadItem | null>(null);
+
+  const [loading, setLoading] = useState(true);
+
+  const loadAvailableLoads = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("loads")
+        .select(
+          [
+            "id",
+            "public_code",
+            "commodity",
+            "weight_kg",
+            "origin",
+            "destination",
+            "budget",
+            "is_urgent",
+          ].join(","),
+        )
+        .eq("status", "open")
+        .order("is_urgent", {
+          ascending: false,
+        })
+        .order("created_at", {
+          ascending: false,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      const loads = ((data as LoadRow[] | null) ?? []).map(rowToLoad);
+
+      setAll(loads);
+
+      setSelected((currentSelected) => {
+        if (!loads.length) {
+          return null;
+        }
+
+        if (!currentSelected) {
+          return loads[0];
+        }
+
+        return loads.find((load) => load.id === currentSelected.id) ?? loads[0];
+      });
+    } catch (error) {
+      console.error("Muatan gagal dimuat dari Supabase:", error);
+
+      window.alert(`Muatan gagal dimuat. ${getErrorMessage(error)}`);
+
+      setAll([]);
+      setSelected(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    void loadAvailableLoads();
+  }, [loadAvailableLoads]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("open-loads-page")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "loads",
+        },
+        () => {
+          void loadAvailableLoads();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadAvailableLoads, supabase]);
+
   const rows = useMemo(
     () =>
-      all.filter(
-        (x) =>
-          (commodity === "all" || x.name.toLowerCase().includes(commodity)) &&
-          x.kg <= max &&
-          `${x.name} ${x.origin} ${x.destination} ${x.id}`
-            .toLowerCase()
-            .includes(q.toLowerCase()),
-      ),
-    [q, commodity, max],
+      all.filter((load) => {
+        const normalizedCommodity = commodity.toLowerCase();
+
+        const matchesCommodity =
+          normalizedCommodity === "all" ||
+          load.name.toLowerCase().includes(normalizedCommodity);
+
+        const matchesWeight = load.kg <= max;
+
+        const searchableText = [
+          load.name,
+          load.origin,
+          load.destination,
+          load.publicCode,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        const matchesSearch = searchableText.includes(q.trim().toLowerCase());
+
+        return matchesCommodity && matchesWeight && matchesSearch;
+      }),
+    [all, commodity, max, q],
   );
+
+  useEffect(() => {
+    if (!rows.length) {
+      return;
+    }
+
+    const selectedStillVisible =
+      selected && rows.some((load) => load.id === selected.id);
+
+    if (!selectedStillVisible) {
+      setSelected(rows[0]);
+    }
+  }, [rows, selected]);
+
   return (
     <AppShell flush>
       <div className="filterbar">
         <label>
           <Search />
+
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(event) => setQ(event.target.value)}
             placeholder="Cari lokasi, komoditas, ID..."
           />
         </label>
+
         <select
           value={commodity}
-          onChange={(e) => setCommodity(e.target.value)}
+          onChange={(event) => setCommodity(event.target.value)}
         >
           <option value="all">Semua Komoditas</option>
+
           <option value="cabai">Cabai</option>
+
           <option value="bawang">Bawang</option>
+
           <option value="tomat">Tomat</option>
         </select>
+
         <label className="range">
-          <SlidersHorizontal /> Maks {max / 1000} ton
+          <SlidersHorizontal />
+          Maks {max / 1000} ton
           <input
             type="range"
             min="1000"
             max="10000"
             step="500"
             value={max}
-            onChange={(e) => setMax(+e.target.value)}
+            onChange={(event) => setMax(Number(event.target.value))}
           />
         </label>
-        <span>{rows.length} Muatan</span>
+
+        <span>{loading ? "Memuat..." : `${rows.length} Muatan`}</span>
       </div>
+
       <div className="split">
         <section className="load-list">
           <h3>Muatan tersedia</h3>
-          {rows.map((x) => (
+
+          {rows.map((load) => (
             <article
-              onClick={() => setSelected(x)}
+              onClick={() => setSelected(load)}
               className={
-                selected.id === x.id ? "load-card selected" : "load-card"
+                selected?.id === load.id ? "load-card selected" : "load-card"
               }
-              key={x.id}
+              key={load.id}
             >
               <header>
                 <span>
-                  <b>{x.name}</b>
+                  <b>{load.name}</b>
+
                   <small>
                     <Scale />
-                    {x.kg / 1000} Ton
+                    {load.kg / 1000} Ton
                   </small>
                 </span>
-                {x.urgent && <i>Urgent</i>}
+
+                {load.urgent && <i>Urgent</i>}
               </header>
+
               <div className="route">
                 <MapPin />
+
                 <b>
-                  {x.origin} → {x.destination}
+                  {load.origin} → {load.destination}
                 </b>
               </div>
+
               <footer>
-                <strong>Rp {x.price.toLocaleString("id-ID")}</strong>
-                <Link href={`/loads/${x.id}`}>Lihat Detail</Link>
+                <strong>
+                  {load.price > 0
+                    ? `Rp ${load.price.toLocaleString("id-ID")}`
+                    : "Anggaran terbuka"}
+                </strong>
+
+                <Link href={`/loads/${encodeURIComponent(load.publicCode)}`}>
+                  Lihat Detail
+                </Link>
               </footer>
             </article>
           ))}
-          {!rows.length && (
+
+          {!loading && rows.length === 0 && (
             <div className="empty-load">
               <h2>Tidak ada muatan</h2>
+
               <button
                 className="button primary"
                 onClick={() => {
@@ -155,14 +319,25 @@ export default function Page() {
             </div>
           )}
         </section>
+
         <section className="map">
-          <RouteMap initial={selected.origin} />
-          <div className="map-tip">
-            <b>{selected.name}</b>
-            <small>
-              {selected.origin} → {selected.destination}
-            </small>
-          </div>
+          {selected ? (
+            <>
+              <RouteMap key={selected.id} initial={selected.origin} />
+
+              <div className="map-tip">
+                <b>{selected.name}</b>
+
+                <small>
+                  {selected.origin} → {selected.destination}
+                </small>
+              </div>
+            </>
+          ) : (
+            <div className="empty-load">
+              <h2>Belum ada muatan aktif</h2>
+            </div>
+          )}
         </section>
       </div>
     </AppShell>
