@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Scale, MapPin, SlidersHorizontal } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { MapPin, Scale, Search, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { RouteMap } from "@/components/maps/RouteMap";
-import { Search, Scale, MapPin, SlidersHorizontal } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 import { panenlinkApi, type MatchResult } from "@/shared/lib/panenLinkApi";
 
 type LoadRow = {
@@ -20,57 +18,93 @@ type LoadRow = {
   urgent?: boolean;
 };
 
-// Backend doesn't resolve node_id -> place name yet, so we can only
-// show what it actually gives us. Keep this obvious in the UI rather
-// than inventing city names.
-function toLoadRow(m: MatchResult): LoadRow {
+// Backend belum menyediakan nama lokasi dari node_id.
+// Karena itu, UI menampilkan node yang benar-benar diberikan backend.
+function toLoadRow(match: MatchResult): LoadRow {
   return {
-    id: m.harvest_id,
-    name: m.commodity,
-    kg: m.volume_kg,
-    origin: `Node ${m.node_id}`,
-    destination: m.truck_id ? `Truck ${m.truck_id}` : "Belum ditugaskan",
-    price: m.estimated_revenue_idr ?? 0,
-    urgent: m.status === "UNMATCHED",
+    id: match.harvest_id,
+    name: match.commodity,
+    kg: match.volume_kg,
+    origin: `Node ${match.node_id}`,
+    destination: match.truck_id
+      ? `Truck ${match.truck_id}`
+      : "Belum ditugaskan",
+    price: match.estimated_revenue_idr ?? 0,
+    urgent: match.status === "UNMATCHED",
   };
 }
 
 export default function Page() {
   const [rowsFromApi, setRowsFromApi] = useState<LoadRow[] | null>(null);
+  const [selected, setSelected] = useState<LoadRow | null>(null);
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState(""),
-    [commodity, setCommodity] = useState("all"),
-    [max, setMax] = useState(10000);
+
+  const [q, setQ] = useState("");
+  const [commodity, setCommodity] = useState("all");
+  const [max, setMax] = useState(10000);
 
   useEffect(() => {
-    panenlinkApi
-      .getLoads()
-      .then((data) => setRowsFromApi(data.map(toLoadRow)))
-      .catch((err) => {
-        console.error(err);
-        setRowsFromApi([]); // fail closed to empty, not fake data
-      })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        const data = await panenlinkApi.getLoads();
+
+        if (cancelled) {
+          return;
+        }
+
+        const mappedRows = data.map(toLoadRow);
+
+        setRowsFromApi(mappedRows);
+        setSelected((current) => current ?? mappedRows[0] ?? null);
+      } catch (error) {
+        console.error("Gagal mengambil data muatan:", error);
+
+        if (!cancelled) {
+          setRowsFromApi([]);
+          setSelected(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadData();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const all = rowsFromApi ?? [];
-  const [selected, setSelected] = useState<LoadRow | null>(null);
-  useEffect(() => {
-    if (!selected && all.length) setSelected(all[0]);
-  }, [all, selected]);
 
-  const rows = useMemo(
-    () =>
-      all.filter(
-        (x) =>
-          (commodity === "all" || x.name.toLowerCase().includes(commodity)) &&
-          x.kg <= max &&
-          `${x.name} ${x.origin} ${x.destination} ${x.id}`
-            .toLowerCase()
-            .includes(q.toLowerCase()),
-      ),
-    [all, q, commodity, max],
-  );
+  const rows = useMemo(() => {
+    const normalizedQuery = q.trim().toLowerCase();
+
+    return all.filter((load) => {
+      const matchesCommodity =
+        commodity === "all" ||
+        load.name.toLowerCase().includes(commodity.toLowerCase());
+
+      const matchesWeight = load.kg <= max;
+
+      const searchableText =
+        `${load.name} ${load.origin} ${load.destination} ${load.id}`.toLowerCase();
+
+      const matchesSearch = searchableText.includes(normalizedQuery);
+
+      return matchesCommodity && matchesWeight && matchesSearch;
+    });
+  }, [all, q, commodity, max]);
+
+  function resetFilters() {
+    setQ("");
+    setCommodity("all");
+    setMax(10000);
+  }
 
   return (
     <AppShell flush>
@@ -84,19 +118,22 @@ export default function Page() {
             placeholder="Cari lokasi, komoditas, ID..."
           />
         </label>
-        <select value={commodity} onChange={(e) => setCommodity(e.target.value)}>
+
+        <select
+          value={commodity}
+          onChange={(event) => setCommodity(event.target.value)}
+        >
           <option value="all">Semua Komoditas</option>
-
           <option value="cabai">Cabai</option>
-
           <option value="bawang">Bawang</option>
-
           <option value="tomat">Tomat</option>
         </select>
 
         <label className="range">
           <SlidersHorizontal />
-          Maks {max / 1000} ton
+
+          <span>Maks {max / 1000} ton</span>
+
           <input
             type="range"
             min="1000"
@@ -113,27 +150,30 @@ export default function Page() {
       <div className="split">
         <section className="load-list">
           <h3>Muatan tersedia</h3>
+
           {loading && <p>Memuat...</p>}
-          {!loading && !rows.length && (
+
+          {!loading && rows.length === 0 && (
             <div className="empty-load">
               <h2>Tidak ada muatan</h2>
+
               <button
+                type="button"
                 className="button primary"
-                onClick={() => {
-                  setQ("");
-                  setCommodity("all");
-                  setMax(10000);
-                }}
+                onClick={resetFilters}
               >
                 Reset Filter
               </button>
             </div>
           )}
-          {rows.map((x) => (
+
+          {rows.map((load) => (
             <article
-              onClick={() => setSelected(x)}
-              className={selected?.id === x.id ? "load-card selected" : "load-card"}
-              key={x.id}
+              key={load.id}
+              onClick={() => setSelected(load)}
+              className={
+                selected?.id === load.id ? "load-card selected" : "load-card"
+              }
             >
               <header>
                 <span>
@@ -163,7 +203,7 @@ export default function Page() {
                     : "Anggaran terbuka"}
                 </strong>
 
-                <Link href={`/loads/${encodeURIComponent(load.publicCode)}`}>
+                <Link href={`/loads/${load.id}`} className="button link">
                   Lihat Detail
                 </Link>
               </footer>
@@ -173,9 +213,11 @@ export default function Page() {
 
         <section className="map">
           {selected && <RouteMap initial={selected.origin} />}
+
           {selected && (
             <div className="map-tip">
               <b>{selected.name}</b>
+
               <small>
                 {selected.origin} → {selected.destination}
               </small>
