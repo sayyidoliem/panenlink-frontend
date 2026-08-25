@@ -15,7 +15,19 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from llama_cpp import Llama
+
+try:
+    from llama_cpp import Llama
+except ImportError:
+    Llama = None
+
+try:
+    import hf_extractor
+except ImportError:
+    try:
+        from . import hf_extractor
+    except Exception:
+        hf_extractor = None
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +62,8 @@ class ExtractRequest(BaseModel):
 # Model loading (once at startup)
 # ---------------------------------------------------------------------------
 
-llm: Llama | None = None
+llm = None
+hf_model_loaded = False
 
 MODEL_CANDIDATES = [
     "models/qwen_farmer_model-unsloth.Q4_K_M.gguf",
@@ -68,22 +81,33 @@ def resolve_model_path() -> str | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global llm
+    global llm, hf_model_loaded
+    # 1. Try loading GGUF if llama_cpp available
     model_path = resolve_model_path()
-    if model_path:
-        print(f"[INFO] Loading GGUF model from '{model_path}'...")
-        llm = Llama(
-            model_path=model_path,
-            n_ctx=2048,    # Qwen2.5-7B needs ≥2048 for coherent multi-turn answers
-            n_threads=4,   # tune to host CPU cores
-            verbose=False,
-        )
-        print("[INFO] Model loaded successfully!")
-    else:
-        print(f"[WARNING] GGUF model file not found in 'models/' or root directory.")
-        print(f"[WARNING] Place a .gguf model in 'models/' or run 'python qwen-llm.py'.")
+    if Llama is not None and model_path:
+        try:
+            print(f"[INFO] Loading GGUF model from '{model_path}'...")
+            llm = Llama(
+                model_path=model_path,
+                n_ctx=2048,    # Qwen2.5-7B needs ≥2048 for coherent multi-turn answers
+                n_threads=4,   # tune to host CPU cores
+                verbose=False,
+            )
+            print("[INFO] GGUF Model loaded successfully!")
+        except Exception as e:
+            print(f"[WARNING] GGUF loading failed: {e}")
+            llm = None
+    
+    # 2. Check if HF safetensors model exists
+    if hf_extractor is not None:
+        hf_path = hf_extractor.resolve_model_path()
+        if hf_path and os.path.exists(hf_path):
+            print(f"[INFO] HF model directory detected at '{hf_path}'.")
+            hf_model_loaded = True
+
     yield
     llm = None  # release on shutdown
+
 
 
 # ---------------------------------------------------------------------------
@@ -328,9 +352,19 @@ async def chat(body: ChatRequest) -> ChatResponse:
 async def extract(body: ExtractRequest) -> FarmerExtraction:
     """
     Structured extraction endpoint for post-load autofill and logistics VRPTW.
-    Cleans markdown wrappers and parses JSON strictly adhering to schema.
-    Falls back to regex heuristics if model is not loaded or output isn't valid JSON.
+    Uses Hugging Face Transformers model (hf_extractor) or local GGUF model.
+    Falls back to regex heuristics if model is offline or output isn't valid JSON.
     """
+    # 1. Try Hugging Face extractor if available
+    if hf_extractor is not None:
+        try:
+            res = hf_extractor.extract_farmer_message(body.message)
+            if res and isinstance(res, dict) and "commodity" in res:
+                return FarmerExtraction(**res)
+        except Exception as e:
+            print(f"[WARN] hf_extractor failed: {e}. Trying GGUF / fallback.")
+
+    # 2. Try GGUF LLM if loaded
     if llm is not None:
         try:
             raw = _call_llm(SYSTEM_PROMPT, body.message, max_tokens=350)
@@ -344,6 +378,10 @@ async def extract(body: ExtractRequest) -> FarmerExtraction:
             return FarmerExtraction(**data)
         except Exception as e:
             print(f"[WARN] LLM extraction JSON parse failed: {e}. Falling back to regex.")
+
+    # 3. Deterministic regex fallback
+    return _regex_extract(body.message)
+
 
     # Deterministic regex fallback
     return _regex_extract(body.message)
