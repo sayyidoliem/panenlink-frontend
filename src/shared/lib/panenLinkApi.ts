@@ -1,5 +1,5 @@
 declare var process: { env: { NEXT_PUBLIC_PANENLINK_API_URL?: string } };
-const BASE_URL = process.env.NEXT_PUBLIC_PANENLINK_API_URL ?? "http://localhost:8000";
+const BASE_URL = process.env.NEXT_PUBLIC_PANENLINK_API_URL ?? "https://panenlink-backend.onrender.com";
 
 export type ParsedHarvestMessage = {
     commodity: string | null;
